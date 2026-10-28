@@ -1,146 +1,189 @@
-# Simple MySQL Layout
+# Simplified MySQL Layout
 
-> **Draft:** This is a minimal starting layout for the chat backend. It is
-> intended to make the relationships and key responsibilities clear before
-> permanent migrations are written.
+> **Draft:** This is the initial database plan for the Seminar prototype. It
+> deliberately favors a small schema over complete multi-device E2EE support.
+> It should guide the first implementation but is not yet a migration.
+
+## Initial scope
+
+The first version uses four tables:
+
+```text
+users
+friendships
+conversations
+messages
+```
+
+The application supports direct conversations between two accepted friends.
+Messages are stored as encrypted payloads. Device-specific public keys,
+conversation-key envelopes, and key rotation are deferred.
 
 ## Entity relationship diagram
 
 ```mermaid
 erDiagram
-    USERS ||--o{ DEVICES : owns
-    USERS ||--o{ FRIENDSHIPS : sends
-    USERS ||--o{ FRIENDSHIPS : receives
-    USERS ||--o{ CONVERSATIONS : creates
-    USERS ||--o{ CONVERSATION_MEMBERS : joins
-    CONVERSATIONS ||--o{ CONVERSATION_MEMBERS : contains
+    USERS ||--o{ FRIENDSHIPS : participates_in
+    USERS ||--o{ CONVERSATIONS : participates_in
     CONVERSATIONS ||--o{ MESSAGES : contains
     USERS ||--o{ MESSAGES : sends
-    DEVICES ||--o{ MESSAGES : sends_from
 
     USERS {
-        BINARY_16 id PK
-        VARCHAR_32 username UK
-        VARCHAR_255 password_hash
-        VARCHAR_100 display_name
-        VARCHAR_255 profile_picture
-        ENUM status
-        DATETIME created_at
-        DATETIME updated_at
-    }
-
-    DEVICES {
-        BINARY_16 id PK
-        BINARY_16 user_id FK
-        VARCHAR_100 device_name
-        ENUM device_type
-        TEXT public_key
-        BINARY_32 key_fingerprint UK
-        DATETIME created_at
-        DATETIME revoked_at
+        binary id PK
+        varchar username UK
+        varchar password_hash
+        varchar profile_picture_path
+        text public_key
+        datetime created_at
+        datetime updated_at
     }
 
     FRIENDSHIPS {
-        BINARY_16 id PK
-        BINARY_16 requester_id FK
-        BINARY_16 addressee_id FK
-        ENUM status
-        DATETIME created_at
-        DATETIME updated_at
+        binary id PK
+        binary requester_id FK
+        binary addressee_id FK
+        enum status
+        datetime created_at
+        datetime updated_at
     }
 
     CONVERSATIONS {
-        BINARY_16 id PK
-        ENUM conversation_type
-        BINARY_16 created_by FK
-        DATETIME created_at
-    }
-
-    CONVERSATION_MEMBERS {
-        BINARY_16 conversation_id PK_FK
-        BINARY_16 user_id PK_FK
-        DATETIME joined_at
-        DATETIME left_at
+        binary id PK
+        binary user_one_id FK
+        binary user_two_id FK
+        datetime created_at
+        datetime updated_at
     }
 
     MESSAGES {
-        BINARY_16 id PK
-        BINARY_16 conversation_id FK
-        BINARY_16 sender_id FK
-        BINARY_16 sender_device_id FK
-        INT key_version
-        MEDIUMBLOB ciphertext
-        VARBINARY_12 nonce
-        VARBINARY_16 auth_tag
-        BINARY_16 client_message_id
-        DATETIME created_at
+        binary id PK
+        binary conversation_id FK
+        binary sender_id FK
+        blob ciphertext
+        binary nonce
+        binary auth_tag
+        datetime created_at
     }
 ```
 
-## Key definitions
+## Tables
 
-| Marking | Meaning |
-|---|---|
-| `PK` | Primary key. Uniquely identifies one row. |
-| `FK` | Foreign key. References a primary key in another table. |
-| `UK` | Unique key. Prevents duplicate values. |
-| `PK_FK` | The column is both part of the primary key and a foreign key. |
-| Secondary key | A non-primary index used to make searches and joins faster. |
+### `users`
 
-## Relationships
+Stores account and profile information.
 
-- One user can own many devices.
-- One user can send and receive many friendship requests.
-- A conversation can have many members.
-- A user can belong to many conversations.
-- A conversation can contain many messages.
-- A user can send many messages.
-- A device can send many messages.
+| Column | Key | Purpose |
+|---|---|---|
+| `id` | PK | Identifies the user |
+| `username` | UK | Unique public/login identifier |
+| `password_hash` |  | Argon2id or bcrypt hash |
+| `profile_picture_path` |  | Path or storage key, not the image itself |
+| `public_key` |  | Temporary single public key for the prototype |
+| `created_at` |  | Account creation time |
+| `updated_at` |  | Last account update time |
 
-## Recommended secondary indexes
+Never store plaintext passwords. The single `public_key` column is a
+prototype simplification; it must move to a separate device table when
+Android and browser devices need independent keys.
 
-These are not primary keys. They support common queries:
+### `friendships`
+
+Stores requests and their current relationship status.
+
+| Column | Key | Purpose |
+|---|---|---|
+| `id` | PK | Identifies the relationship record |
+| `requester_id` | FK | User who sent the request |
+| `addressee_id` | FK | User who received the request |
+| `status` |  | `pending`, `accepted`, `declined`, or `blocked` |
+| `created_at` |  | Request creation time |
+| `updated_at` |  | Last status change |
+
+The application must reject self-friendships, duplicate requests, and reverse
+duplicates such as both `A -> B` and `B -> A`.
+
+### `conversations`
+
+Stores a direct conversation between two users.
+
+| Column | Key | Purpose |
+|---|---|---|
+| `id` | PK | Identifies the conversation |
+| `user_one_id` | FK | First participant |
+| `user_two_id` | FK | Second participant |
+| `created_at` |  | Conversation creation time |
+| `updated_at` |  | Last activity time |
+
+The application must verify that the two users are accepted friends before
+creating a conversation. Store the two user IDs in a consistent order and add
+a unique constraint so the same pair cannot create duplicate conversations.
+
+### `messages`
+
+Stores encrypted messages belonging to a conversation.
+
+| Column | Key | Purpose |
+|---|---|---|
+| `id` | PK | Identifies the message |
+| `conversation_id` | FK | Conversation containing the message |
+| `sender_id` | FK | User who sent the message |
+| `ciphertext` |  | Encrypted message content |
+| `nonce` |  | AES-GCM nonce |
+| `auth_tag` |  | AES-GCM authentication tag |
+| `created_at` |  | Message creation time |
+
+The backend stores encrypted payload data only. It must not store plaintext
+messages, private keys, or plaintext conversation keys.
+
+## Recommended indexes
+
+Primary keys identify rows. Foreign keys connect rows. These secondary indexes
+support common lookups:
 
 ```text
-DEVICES
-  INDEX (user_id)
+USERS
+  UNIQUE (username)
 
 FRIENDSHIPS
   INDEX (requester_id, status)
   INDEX (addressee_id, status)
   UNIQUE (requester_id, addressee_id)
 
-CONVERSATION_MEMBERS
-  INDEX (user_id)
+CONVERSATIONS
+  UNIQUE (user_one_id, user_two_id)
+  INDEX (user_one_id)
+  INDEX (user_two_id)
 
 MESSAGES
   INDEX (conversation_id, created_at, id)
   INDEX (sender_id, created_at)
-  UNIQUE (sender_device_id, client_message_id)
 ```
 
-## Important constraints
+The friendship unique key prevents duplicates in one direction. Application
+logic must also check the reverse direction. The conversation unique key
+assumes `user_one_id` is always the lower ordered user ID.
 
-- `USERS.username` must be unique.
-- `DEVICES.key_fingerprint` should be unique per user.
-- A user must not be allowed to create a friendship with themselves.
-- The application must prevent duplicate reverse friendships
-  (`A -> B` and `B -> A`).
-- Only conversation members may read or send messages.
-- A message must be persisted before it is broadcast over WebSocket.
-- `ciphertext`, `nonce`, and `auth_tag` contain encrypted message data only.
-- No password, private key, plaintext message, or plaintext conversation key
-  should be stored in MySQL.
+## Authorization rules
 
-## Deliberately deferred tables
+1. A user can only read or modify their own profile.
+2. Only friendship participants can view or change that friendship.
+3. A conversation can be created only for accepted friends.
+4. Only the two conversation participants can read or send messages.
+5. The sender must be one of the conversation participants.
+6. A message must be persisted before it is broadcast over WebSocket.
 
-To keep the first version simple, these are not included yet:
+## Deferred features
 
-- Refresh-token sessions
-- Conversation-key envelope history
+These are intentionally excluded from the first schema:
+
+- Separate device records and per-device public keys
+- Conversation-key versions and encrypted key envelopes
+- Key rotation after device revocation
+- Group conversations
 - Message read receipts
-- File metadata for profile pictures
-- Group-specific roles and permissions
+- Attachments
+- Notifications
+- Refresh-token sessions
 
-They can be added after the basic authentication, friendship, and messaging
-flows are working.
+The schema can be extended later without changing the basic relationship
+between users, friendships, conversations, and messages.

@@ -38,7 +38,8 @@ Seminar/
 ├── bin/
 │   └── www
 ├── docs/
-│   └── api.md
+│   ├── api.md
+│   └── mysql-layout.md
 ├── public/
 ├── routes/
 ├── views/
@@ -87,4 +88,5 @@ The server listens on port `3000` by default. Set `PORT` to use another port.
 ## Documentation
 
 The API documentation is in [`docs/api.md`](docs/api.md). It is an evolving
-contract and should be updated alongside endpoint changes.
+contract and should be updated alongside endpoint changes. The initial database
+plan is in [`docs/mysql-layout.md`](docs/mysql-layout.md).
