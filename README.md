@@ -39,7 +39,9 @@ Seminar/
 │   └── www
 ├── docs/
 │   ├── api.md
-│   └── mysql-layout.md
+│   ├── mysql-layout.md
+│   └── project-context.md
+├── seminar.service
 ├── public/
 ├── routes/
 ├── views/
@@ -73,6 +75,48 @@ npm start
 
 The server listens on port `3000` by default. Set `PORT` to use another port.
 
+## Running as a service
+
+The development server can run as a user-level systemd service. Install the
+unit from the repository directory:
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp seminar.service ~/.config/systemd/user/seminar.service
+systemctl --user daemon-reload
+systemctl --user enable --now seminar.service
+```
+
+To keep the service running after the machine boots, even before an interactive
+login, enable lingering for the application user:
+
+```bash
+sudo loginctl enable-linger "$USER"
+```
+
+Check the service and view its logs:
+
+```bash
+systemctl --user status seminar.service
+journalctl --user -u seminar.service -f
+```
+
+The service runs `npm run dev`, which uses Nodemon and is intended for
+development. A production deployment should use `npm start` or a process
+manager instead.
+
+## Health check
+
+The health endpoint confirms that the Express server is running:
+
+```text
+GET /health
+```
+
+Successful responses return HTTP `200` with a small JSON confirmation. Errors
+are handled by the application error middleware and return the corresponding
+HTTP error status.
+
 ## Development principles
 
 - Do not commit credentials, private keys, plaintext messages, or decrypted
@@ -89,4 +133,6 @@ The server listens on port `3000` by default. Set `PORT` to use another port.
 
 The API documentation is in [`docs/api.md`](docs/api.md). It is an evolving
 contract and should be updated alongside endpoint changes. The initial database
-plan is in [`docs/mysql-layout.md`](docs/mysql-layout.md).
+plan is in [`docs/mysql-layout.md`](docs/mysql-layout.md). The project handoff
+and decision history is in
+[`docs/project-context.md`](docs/project-context.md).

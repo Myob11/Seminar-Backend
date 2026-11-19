@@ -26,6 +26,25 @@
 
 - Pagination limits and the final error-code list still need to be approved.
 
+## Health
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `GET` | `/health` | Public | Confirm that the backend is running |
+
+Successful response:
+
+```json
+{
+  "status": "ok",
+  "message": "Service is healthy"
+}
+```
+
+The endpoint returns HTTP `200` only when the request is handled successfully.
+Unexpected failures are passed to the centralized error handler, which returns
+the corresponding HTTP error status.
+
 ## Authentication
 
 | Method | Path | Auth | Purpose |
@@ -48,7 +67,21 @@
 | `DELETE` | `/api/users/me/profile-picture` | JWT | Remove the profile picture |
 
 Uploaded files must be validated and stored outside the publicly executable
-web root. The accepted formats and size limit are still to be defined.
+web root. The server may resize or re-encode the image, generate a controlled
+filename, and store a disk-relative path or public-view URL in MySQL.
+
+Only the authenticated user may change or remove their profile picture.
+Uploading a new picture replaces the existing picture. The old file may be
+deleted after the database update succeeds.
+
+The exact accepted formats and size limit remain to be approved. The minimum
+MVP policy should accept common raster formats and reject executable or
+unexpected file content even if the filename extension appears valid.
+
+A successful upload should return the updated profile representation,
+including the public-view URL for `profile_picture` or
+`profile_picture_url`. The exact field name will remain consistent across
+profile responses and must not expose the server-side disk path.
 
 ## Friendships
 
@@ -61,7 +94,20 @@ web root. The accepted formats and size limit are still to be defined.
 | `POST` | `/api/friends/requests/:id/decline` | JWT | Decline a request |
 | `DELETE` | `/api/friends/:id` | JWT | Remove an accepted friendship |
 
-The service must reject self-friendships and duplicate requests.
+The request body for `POST /api/friends/requests` identifies the recipient
+with their user ID. The authenticated sender becomes `requester_id`, and the
+recipient becomes `addressee_id`.
+
+The initial status is `pending`. Accepting changes it to `accepted`; declining
+changes it to `declined`. An accepted friendship is bidirectional for reads and
+direct-conversation authorization even though the database stores one direction.
+
+The service must reject:
+
+- Self-friendships.
+- Duplicate pending or accepted requests.
+- Reverse duplicates for an existing `pending` or `accepted` relationship.
+- Accept or decline requests that were not sent to the authenticated user.
 
 ## Devices and public keys
 

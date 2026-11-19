@@ -15,3 +15,9 @@ uploads/
 coverage/
 .nyc_output/
 .DS_Store
+
+seminar.service
+
+# Private implementation handoff and database design
+/docs/project-context.md
+/docs/mysql-layout.md
