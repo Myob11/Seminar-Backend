@@ -56,6 +56,80 @@ the corresponding HTTP error status.
 
 \* Logout behavior depends on the final session and token strategy.
 
+Protected authentication requests use:
+
+```http
+Authorization: Bearer <jwt-access-token>
+```
+
+`GET /api/auth/me` returns the authenticated user's public account fields.
+Missing, malformed, expired, or invalid bearer tokens return HTTP `401`.
+
+Successful response:
+
+```json
+{
+  "id": "99e79d8f-1ae4-43c8-b657-4f9be44d57c9",
+  "username": "alice",
+  "profile_picture": null
+}
+```
+
+### Register and login
+
+`POST /api/auth/register` and `POST /api/auth/login` accept:
+
+```json
+{
+  "username": "alice",
+  "password": "a-password-at-least-12-characters"
+}
+```
+
+Usernames are normalized to lowercase and must contain 3-64 letters, numbers,
+or underscores. Passwords must contain 12-200 characters. Both successful
+responses return a user representation and a JWT access token. The default
+token lifetime is one hour and can be configured with `JWT_EXPIRES_IN`.
+
+### Registration
+
+`POST /api/auth/register` is the public account-creation endpoint.
+
+Example request:
+
+```http
+POST /api/auth/register
+Content-Type: application/json
+
+{
+  "username": "alice",
+  "password": "a-password-at-least-12-characters"
+}
+```
+
+Successful registration returns HTTP `201`:
+
+```json
+{
+  "user": {
+    "id": "99e79d8f-1ae4-43c8-b657-4f9be44d57c9",
+    "username": "alice",
+    "profile_picture": null
+  },
+  "token": "<jwt-access-token>"
+}
+```
+
+Registration validation and conflict responses use the standard error shape:
+
+- `400 INVALID_USERNAME` for an invalid username.
+- `400 INVALID_PASSWORD` for an invalid password.
+- `409 USERNAME_TAKEN` when the username already exists.
+
+The password is stored only as a bcrypt hash. The JWT is issued for the newly
+created user and must be sent by clients as
+`Authorization: Bearer <jwt-access-token>` on protected endpoints.
+
 ## Users and profiles
 
 | Method | Path | Auth | Purpose |
@@ -135,6 +209,24 @@ defined after the conversation and message data model is approved:
 Every operation must verify authenticated conversation membership. The backend
 must store and relay ciphertext and encrypted key envelopes only; it must not
 receive plaintext messages or plaintext encryption keys.
+
+Group conversations also support participant and role management:
+
+- Create a group and automatically assign the creator the `owner` role.
+- Let owners and admins add or remove members.
+- Let owners and admins promote or demote admins.
+- Prevent admins and members from removing or managing the owner.
+- Let owners and admins delete group messages.
+- Let only active group participants send or read group messages.
+
+Message deletion is soft deletion: the API marks `deleted_at` and
+`deleted_by` and excludes deleted messages from normal reads. A deleted group
+conversation is also soft-deleted with `deleted_at` and `deleted_by`; its
+associated participant, envelope, and message rows remain in the database but
+are hidden from normal API reads.
+
+The exact participant, role-change, and message-deletion paths remain draft
+and must use the standard REST methods and error shapes defined above.
 
 ## Real-time messaging
 
