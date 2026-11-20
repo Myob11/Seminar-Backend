@@ -112,3 +112,14 @@ CREATE TABLE IF NOT EXISTS messages (
   CONSTRAINT fk_messages_deleted_by
     FOREIGN KEY (deleted_by) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS revoked_access_tokens (
+  jti VARCHAR(36) NOT NULL,
+  user_id BINARY(16) NOT NULL,
+  expires_at DATETIME(6) NOT NULL,
+  revoked_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (jti),
+  KEY idx_revoked_access_tokens_user_expires (user_id, expires_at),
+  CONSTRAINT fk_revoked_access_tokens_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

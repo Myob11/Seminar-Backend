@@ -54,6 +54,7 @@
                   "var body = pm.response.json();",
                   "if (body.token) {",
                   "    pm.environment.set('accessToken', body.token);",
+                  "    pm.collectionVariables.set('accessToken', body.token);",
                   "}",
                   "if (body.user && body.user.id) {",
                   "    pm.environment.set('userId', body.user.id);",
@@ -110,6 +111,7 @@
                   "var body = pm.response.json();",
                   "if (body.token) {",
                   "    pm.environment.set('accessToken', body.token);",
+                  "    pm.collectionVariables.set('accessToken', body.token);",
                   "}",
                   "if (body.user && body.user.id) {",
                   "    pm.environment.set('userId', body.user.id);",
@@ -178,6 +180,54 @@
               ]
             },
             "description": "Return the account represented by the captured JWT."
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Logout succeeds', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    pm.environment.set('accessToken', '');",
+                  "    pm.collectionVariables.set('accessToken', '');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Revoke the captured JWT access token."
           },
           "response": []
         }

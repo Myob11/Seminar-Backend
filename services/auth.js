@@ -1,6 +1,7 @@
 var bcrypt = require('bcryptjs');
 var crypto = require('crypto');
 var jwt = require('jsonwebtoken');
+var path = require('path');
 var config = require('../config');
 var users = require('../repositories/users');
 var ApiError = require('../errors');
@@ -26,11 +27,20 @@ function validateCredentials(body) {
   return { username: username, password: password };
 }
 
+function profilePictureUrl(profilePicturePath) {
+  if (!profilePicturePath) {
+    return null;
+  }
+
+  var filename = path.basename(profilePicturePath);
+  return '/api/users/profile-pictures/' + encodeURIComponent(filename);
+}
+
 function publicUser(user) {
   return {
     id: user.id.toString(),
     username: user.username,
-    profile_picture: user.profile_picture_path
+    profile_picture: profilePictureUrl(user.profile_picture_path)
   };
 }
 
@@ -40,7 +50,7 @@ function issueToken(user) {
   }
 
   return jwt.sign(
-    { sub: user.id.toString(), username: user.username },
+    { sub: user.id.toString(), username: user.username, jti: crypto.randomUUID() },
     config.jwt.secret,
     { expiresIn: config.jwt.expiresIn }
   );

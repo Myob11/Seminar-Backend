@@ -2,6 +2,9 @@ var express = require('express');
 var path = require('path');
 var auth = require('../services/auth');
 var authenticate = require('../middleware/authenticate');
+var revokedTokens = require('../repositories/revoked_tokens');
+var jwt = require('jsonwebtoken');
+var config = require('../config');
 
 var router = express.Router();
 
@@ -38,6 +41,24 @@ router.get('/me', authenticate, function(req, res) {
     username: req.user.username,
     profile_picture: profilePictureUrl(req.user.profile_picture_path)
   });
+});
+
+router.post('/logout', authenticate, async function(req, res, next) {
+  try {
+    var header = req.get('Authorization');
+    var token = header.slice(7);
+    var payload = jwt.verify(token, config.jwt.secret);
+
+    await revokedTokens.revoke(
+      payload.jti,
+      req.user.id,
+      new Date(payload.exp * 1000)
+    );
+
+    res.status(200).json({ logged_out: true });
+  } catch (error) {
+    next(error);
+  }
 });
 
 module.exports = router;

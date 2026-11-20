@@ -30,7 +30,7 @@
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| `GET` | `/health` | Public | Confirm that the backend is running |
+| `GET` | `/api/health` | Public | Confirm that the backend is running |
 
 Successful response:
 
@@ -51,10 +51,8 @@ the corresponding HTTP error status.
 |---|---|---|---|
 | `POST` | `/api/auth/register` | Public | Create a user account |
 | `POST` | `/api/auth/login` | Public | Authenticate and issue a JWT |
-| `POST` | `/api/auth/logout` | JWT* | Revoke a session if refresh-token sessions are implemented |
+| `POST` | `/api/auth/logout` | JWT | Revoke the presented access token |
 | `GET` | `/api/auth/me` | JWT | Return the authenticated user's profile |
-
-\* Logout behavior depends on the final session and token strategy.
 
 Protected authentication requests use:
 
@@ -129,6 +127,61 @@ Registration validation and conflict responses use the standard error shape:
 The password is stored only as a bcrypt hash. The JWT is issued for the newly
 created user and must be sent by clients as
 `Authorization: Bearer <jwt-access-token>` on protected endpoints.
+
+### Login
+
+`POST /api/auth/login` is the public account-authentication endpoint.
+
+Example request:
+
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{
+  "username": "alice",
+  "password": "a-password-at-least-12-characters"
+}
+```
+
+Successful login returns HTTP `200`:
+
+```json
+{
+  "user": {
+    "id": "99e79d8f-1ae4-43c8-b657-4f9be44d57c9",
+    "username": "alice",
+    "profile_picture": null
+  },
+  "token": "<jwt-access-token>"
+}
+```
+
+Invalid credentials return `401 INVALID_CREDENTIALS`.
+
+### Logout
+
+`POST /api/auth/logout` requires the bearer access token to be in the
+`Authorization` header:
+
+```http
+POST /api/auth/logout
+Authorization: Bearer <jwt-access-token>
+```
+
+Successful logout returns HTTP `200`:
+
+```json
+{
+  "logged_out": true
+}
+```
+
+The token's server-side revocation record remains until the token expires.
+Using the revoked token on protected endpoints returns `401 TOKEN_REVOKED`.
+Revocation is checked on every protected endpoint. Access tokens issued before
+the `jti` revocation identifier was added require a new login and are rejected
+with `401 INVALID_TOKEN`.
 
 ## Users and profiles
 
@@ -235,14 +288,18 @@ Only the authenticated user may change or remove their profile picture.
 Uploading a new picture replaces the existing picture. The old file may be
 deleted after the database update succeeds.
 
-The exact accepted formats and size limit remain to be approved. The minimum
-MVP policy should accept common raster formats and reject executable or
-unexpected file content even if the filename extension appears valid.
+The accepted profile-picture policy is now:
 
-A successful upload should return the updated profile representation,
-including the public-view URL for `profile_picture` or
-`profile_picture_url`. The exact field name will remain consistent across
-profile responses and must not expose the server-side disk path.
+- Maximum file size: 5 MB.
+- Maximum input dimension: 4096 pixels per axis.
+- Accepted decoded formats: JPEG, PNG, and WebP.
+- Output format: PNG.
+- Maximum output dimension: 1024 pixels per axis.
+- Stored filename: server-generated UUID with a `.png` extension.
+
+The profile representation consistently exposes `profile_picture` as a public
+view URL, not a server-side disk path. No profile picture is represented by
+`null`.
 
 ## Friendships
 

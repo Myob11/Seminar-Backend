@@ -1,6 +1,7 @@
 var jwt = require('jsonwebtoken');
 var config = require('../config');
 var users = require('../repositories/users');
+var revokedTokens = require('../repositories/revoked_tokens');
 var ApiError = require('../errors');
 
 async function authenticate(req, res, next) {
@@ -14,6 +15,15 @@ async function authenticate(req, res, next) {
 
   try {
     var payload = jwt.verify(token, config.jwt.secret);
+
+    if (!payload.jti) {
+      throw new ApiError(401, 'INVALID_TOKEN', 'Access token is missing a session identifier.');
+    }
+
+    if (await revokedTokens.isRevoked(payload.jti)) {
+      throw new ApiError(401, 'TOKEN_REVOKED', 'Access token has been revoked.');
+    }
+
     var user = await users.findById(payload.sub);
 
     if (!user) {
