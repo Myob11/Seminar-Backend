@@ -22,7 +22,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);
-app.use('/users', usersRouter);
+app.use('/api/users', usersRouter);
 
 app.get('/demo', function(req, res) {
   res.set('Cache-Control', 'no-store');

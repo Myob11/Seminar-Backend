@@ -18,6 +18,24 @@ async function findById(id) {
   return rows[0][0] || null;
 }
 
+async function search(query, excludeId, limit) {
+  var rows = await db.execute(
+    `SELECT BIN_TO_UUID(id) AS id, username, profile_picture_path
+     FROM users
+     WHERE username LIKE ? ESCAPE '\\\\'
+       AND id <> UUID_TO_BIN(?)
+     ORDER BY username
+     LIMIT ?`,
+    ['%' + escapeLike(query) + '%', excludeId, limit]
+  );
+
+  return rows[0];
+}
+
+function escapeLike(value) {
+  return value.replace(/[\\\\%_]/g, '\\$&');
+}
+
 async function create(user) {
   await db.execute(
     'INSERT INTO users (id, username, password_hash) VALUES (UUID_TO_BIN(?), ?, ?)',
@@ -34,5 +52,6 @@ async function create(user) {
 module.exports = {
   findByUsername: findByUsername,
   findById: findById,
+  search: search,
   create: create
 };

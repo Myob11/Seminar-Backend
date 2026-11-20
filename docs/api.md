@@ -140,6 +140,31 @@ created user and must be sent by clients as
 | `POST` | `/api/users/me/profile-picture` | JWT | Upload a profile picture |
 | `DELETE` | `/api/users/me/profile-picture` | JWT | Remove the profile picture |
 
+### Search users
+
+`GET /api/users/search?q=...` requires a bearer JWT. The `q` parameter must
+contain 1-64 characters. Matches are case-insensitive username substring
+matches, limited to 20 public user results. The authenticated user is excluded.
+
+Example:
+
+```http
+GET /api/users/search?q=ali
+Authorization: Bearer <jwt-access-token>
+```
+
+Response:
+
+```json
+[
+  {
+    "id": "99e79d8f-1ae4-43c8-b657-4f9be44d57c9",
+    "username": "alice",
+    "profile_picture": null
+  }
+]
+```
+
 Uploaded files must be validated and stored outside the publicly executable
 web root. The server may resize or re-encode the image, generate a controlled
 filename, and store a disk-relative path or public-view URL in MySQL.
