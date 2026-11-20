@@ -136,9 +136,33 @@ created user and must be sent by clients as
 |---|---|---|---|
 | `GET` | `/api/users/search?q=...` | JWT | Search public user identifiers |
 | `GET` | `/api/users/:id` | JWT | View a user profile |
-| `PATCH` | `/api/users/me/profile` | JWT | Update the authenticated user's profile |
 | `POST` | `/api/users/me/profile-picture` | JWT | Upload a profile picture |
 | `DELETE` | `/api/users/me/profile-picture` | JWT | Remove the profile picture |
+
+### View a user profile
+
+`GET /api/users/:id` requires a bearer JWT. The `id` parameter must be a valid
+UUID. Successful responses return only public profile fields.
+
+Example:
+
+```http
+GET /api/users/99e79d8f-1ae4-43c8-b657-4f9be44d57c9
+Authorization: Bearer <jwt-access-token>
+```
+
+Response:
+
+```json
+{
+  "id": "99e79d8f-1ae4-43c8-b657-4f9be44d57c9",
+  "username": "alice",
+  "profile_picture": null
+}
+```
+
+Invalid UUIDs return `400 INVALID_USER_ID`. Unknown users return
+`404 USER_NOT_FOUND`.
 
 ### Search users
 
@@ -169,6 +193,44 @@ Uploaded files must be validated and stored outside the publicly executable
 web root. The server may resize or re-encode the image, generate a controlled
 filename, and store a disk-relative path or public-view URL in MySQL.
 
+### Profile picture upload
+
+`POST /api/users/me/profile-picture` requires a bearer JWT and accepts a
+single multipart field named `profile_picture`.
+
+Allowed content is limited to actual JPEG, PNG, or WebP image data. The
+server validates the decoded image, limits input dimensions to 4096 pixels,
+limits file size to 5 MB, re-encodes the image as PNG, resizes it to at most
+1024 pixels per axis, and stores it outside `public/` under a random filename.
+Uploading a new picture replaces the database path and removes the old file
+after the database update succeeds.
+
+Example:
+
+```text
+POST /api/users/me/profile-picture
+Authorization: Bearer <jwt-access-token>
+Content-Type: multipart/form-data
+
+profile_picture: <image-file>
+```
+
+Success response:
+
+```json
+{
+  "id": "99e79d8f-1ae4-43c8-b657-4f9be44d57c9",
+  "username": "alice",
+  "profile_picture": "/api/users/profile-pictures/<filename>.png"
+}
+```
+
+The public profile picture route is
+`GET /api/users/profile-pictures/:filename`.
+
+`DELETE /api/users/me/profile-picture` removes the database reference and
+the stored file. It is safe when no profile picture exists.
+
 Only the authenticated user may change or remove their profile picture.
 Uploading a new picture replaces the existing picture. The old file may be
 deleted after the database update succeeds.
@@ -196,6 +258,12 @@ profile responses and must not expose the server-side disk path.
 The request body for `POST /api/friends/requests` identifies the recipient
 with their user ID. The authenticated sender becomes `requester_id`, and the
 recipient becomes `addressee_id`.
+
+```json
+{
+  "recipient_id": "99e79d8f-1ae4-43c8-b657-4f9be44d57c9"
+}
+```
 
 The initial status is `pending`. Accepting changes it to `accepted`; declining
 changes it to `declined`. An accepted friendship is bidirectional for reads and

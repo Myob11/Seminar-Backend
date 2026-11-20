@@ -1,8 +1,18 @@
 var express = require('express');
+var path = require('path');
 var auth = require('../services/auth');
 var authenticate = require('../middleware/authenticate');
 
 var router = express.Router();
+
+function profilePictureUrl(profilePicturePath) {
+  if (!profilePicturePath) {
+    return null;
+  }
+
+  var filename = path.basename(profilePicturePath);
+  return '/api/users/profile-pictures/' + encodeURIComponent(filename);
+}
 
 router.post('/register', async function(req, res, next) {
   try {
@@ -26,7 +36,7 @@ router.get('/me', authenticate, function(req, res) {
   res.status(200).json({
     id: req.user.id,
     username: req.user.username,
-    profile_picture: req.user.profile_picture_path
+    profile_picture: profilePictureUrl(req.user.profile_picture_path)
   });
 });
 

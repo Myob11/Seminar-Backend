@@ -17,7 +17,9 @@
     "http-errors": "~1.6.3",
     "jsonwebtoken": "^9.0.2",
     "morgan": "~1.9.1",
-    "mysql2": "^3.11.5"
+    "multer": "^2.0.2",
+    "mysql2": "^3.11.5",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

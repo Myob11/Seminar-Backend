@@ -57,6 +57,7 @@
                   "}",
                   "if (body.user && body.user.id) {",
                   "    pm.environment.set('userId', body.user.id);",
+                  "    pm.environment.set('profileUserId', body.user.id);",
                   "}"
                 ]
               }
@@ -112,6 +113,7 @@
                   "}",
                   "if (body.user && body.user.id) {",
                   "    pm.environment.set('userId', body.user.id);",
+                  "    pm.environment.set('profileUserId', body.user.id);",
                   "}"
                 ]
               }
@@ -186,6 +188,24 @@
       "item": [
         {
           "name": "Search users",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('User search succeeds', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var users = pm.response.json();",
+                  "if (users.length > 0) {",
+                  "    pm.environment.set('profileUserId', users[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "auth": {
               "type": "bearer",
@@ -217,6 +237,347 @@
               ]
             },
             "description": "Search public usernames. The authenticated user is excluded."
+          },
+          "response": []
+        },
+        {
+          "name": "Get user profile",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{profileUserId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "{{profileUserId}}"
+              ]
+            },
+            "description": "Return a public user profile by UUID."
+          },
+          "response": []
+        },
+        {
+          "name": "Upload profile picture",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Profile picture upload succeeds', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var body = pm.response.json();",
+                  "if (body.profile_picture) {",
+                  "    pm.environment.set('profilePicturePath', body.profile_picture);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "profile_picture",
+                  "type": "file",
+                  "src": [],
+                  "description": "Choose a JPEG, PNG, or WebP image."
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me/profile-picture",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me",
+                "profile-picture"
+              ]
+            },
+            "description": "Upload or replace the authenticated user's profile picture."
+          },
+          "response": []
+        },
+        {
+          "name": "Remove profile picture",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me/profile-picture",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me",
+                "profile-picture"
+              ]
+            },
+            "description": "Remove the authenticated user's profile picture."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Friends",
+      "item": [
+        {
+          "name": "List friends",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/friends",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "friends"
+              ]
+            },
+            "description": "List accepted friends."
+          },
+          "response": []
+        },
+        {
+          "name": "List friend requests",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/friends/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "friends",
+                "requests"
+              ]
+            },
+            "description": "List incoming pending friend requests."
+          },
+          "response": []
+        },
+        {
+          "name": "Send friend request",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Friend request is sent', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "var body = pm.response.json();",
+                  "if (body.id) {",
+                  "    pm.environment.set('friendshipId', body.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recipient_id\": \"{{friendUserId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/friends/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "friends",
+                "requests"
+              ]
+            },
+            "description": "Send a pending friend request to a user UUID."
+          },
+          "response": []
+        },
+        {
+          "name": "Accept friend request",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/friends/requests/{{friendshipId}}/accept",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "friends",
+                "requests",
+                "{{friendshipId}}",
+                "accept"
+              ]
+            },
+            "description": "Accept an incoming pending friend request."
+          },
+          "response": []
+        },
+        {
+          "name": "Decline friend request",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/friends/requests/{{friendshipId}}/decline",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "friends",
+                "requests",
+                "{{friendshipId}}",
+                "decline"
+              ]
+            },
+            "description": "Decline an incoming pending friend request."
+          },
+          "response": []
+        },
+        {
+          "name": "Remove friend",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/friends/{{friendUserId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "friends",
+                "{{friendUserId}}"
+              ]
+            },
+            "description": "Remove an accepted friendship."
           },
           "response": []
         }

@@ -32,6 +32,24 @@ async function search(query, excludeId, limit) {
   return rows[0];
 }
 
+async function updateProfilePicture(id, path) {
+  var result = await db.execute(
+    'UPDATE users SET profile_picture_path = ? WHERE id = UUID_TO_BIN(?)',
+    [path, id]
+  );
+
+  return result[0].affectedRows === 1;
+}
+
+async function findByProfilePicturePath(path) {
+  var rows = await db.execute(
+    'SELECT BIN_TO_UUID(id) AS id, username, profile_picture_path FROM users WHERE profile_picture_path = ? LIMIT 1',
+    [path]
+  );
+
+  return rows[0][0] || null;
+}
+
 function escapeLike(value) {
   return value.replace(/[\\\\%_]/g, '\\$&');
 }
@@ -53,5 +71,7 @@ module.exports = {
   findByUsername: findByUsername,
   findById: findById,
   search: search,
+  updateProfilePicture: updateProfilePicture,
+  findByProfilePicturePath: findByProfilePicturePath,
   create: create
 };
