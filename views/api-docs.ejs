@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Seminar API Documentation</title>
+    <meta name="description" content="Seminar REST API reference and integration guide">
+    <link rel="stylesheet" href="/stylesheets/docs.css">
+  </head>
+  <body>
+    <div class="reading-progress" aria-hidden="true"><span></span></div>
+
+    <aside class="docs-sidebar" id="docs-sidebar">
+      <a class="brand" href="/api/docs" aria-label="Seminar API documentation home">
+        <span class="brand-mark">S</span>
+        <span>
+          <strong>Seminar</strong>
+          <small>API Reference</small>
+        </span>
+      </a>
+
+      <label class="search-box" for="docs-search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.35-4.35m1.35-5.15a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z"/></svg>
+        <input id="docs-search" type="search" placeholder="Search documentation" autocomplete="off">
+        <kbd>/</kbd>
+      </label>
+
+      <nav class="docs-nav" aria-label="Documentation sections">
+        <% sections.forEach(function(section) { %>
+          <a class="nav-link depth-<%= section.depth %>" href="#<%= section.id %>" data-section="<%= section.title.toLowerCase() %>">
+            <%= section.title %>
+          </a>
+        <% }); %>
+      </nav>
+
+      <div class="sidebar-footer">
+        <a href="/api/health" target="_blank" rel="noopener">Health status <span aria-hidden="true">↗</span></a>
+        <button id="theme-toggle" type="button" aria-label="Switch color theme">
+          <span class="theme-icon" aria-hidden="true">◐</span>
+          <span class="theme-label">Theme</span>
+        </button>
+      </div>
+    </aside>
+
+    <button class="menu-button" id="menu-button" type="button" aria-controls="docs-sidebar" aria-expanded="false">
+      <span></span><span></span><span></span>
+      <span class="sr-only">Open documentation menu</span>
+    </button>
+
+    <main class="docs-main">
+      <article class="api-documentation" id="documentation">
+        <%- documentation %>
+      </article>
+    </main>
+
+    <button class="back-to-top" id="back-to-top" type="button" aria-label="Back to top">↑</button>
+    <div class="search-empty" id="search-empty" hidden>No matching documentation found.</div>
+    <script src="/javascripts/docs.js"></script>
+  </body>
+</html>

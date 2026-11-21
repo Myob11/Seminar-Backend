@@ -13,6 +13,30 @@
   ],
   "item": [
     {
+      "name": "Documentation",
+      "item": [
+        {
+          "name": "Get API documentation",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/docs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "docs"
+              ]
+            },
+            "description": "Open the rendered Seminar API documentation website."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Health",
       "item": [
         {

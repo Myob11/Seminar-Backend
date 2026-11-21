@@ -110,12 +110,20 @@ manager instead.
 The health endpoint confirms that the Express server is running:
 
 ```text
-GET /health
+GET /api/health
 ```
 
 Successful responses return HTTP `200` with a small JSON confirmation. Errors
 are handled by the application error middleware and return the corresponding
 HTTP error status.
+
+## API documentation
+
+The rendered API contract is available at:
+
+```text
+https://backend.kbnet.si/api/docs
+```
 
 ## Development principles
 
