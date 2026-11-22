@@ -200,6 +200,29 @@ The conversation key is created by the client that creates the conversation:
 
 The server never sees the 32 plaintext conversation-key bytes.
 
+Only the conversation creator performs this initial setup. It creates and
+uploads two envelopes: one wrapped with the creator's RSA public key and one
+wrapped with the friend's RSA public key. The friend does not generate or upload
+an additional copy of the conversation key. After setup, each person retrieves
+only their own envelope and unwraps it with their own RSA private key.
+
+For each upload, set the URL `recipient_id` to the UUID of the account for
+which the ciphertext was RSA-OAEP wrapped. Perform one PUT request for the
+creator and a second PUT request for the friend. The server rejects a missing
+active participant, a key version that differs from the conversation's current
+version, invalid base64 or ciphertext length, and a duplicate recipient/version
+envelope.
+
+Example upload sequence:
+
+```text
+PUT /api/conversations/<conversation-id>/key-envelopes/<creator-user-id>
+PUT /api/conversations/<conversation-id>/key-envelopes/<friend-user-id>
+```
+
+Both requests contain the same `key_version` and the separately wrapped
+`encrypted_conversation_key` values. Never send the plaintext 32-byte AES key.
+
 ### 3.3 Store the key envelope
 
 Each envelope has:
@@ -218,6 +241,17 @@ The unique recipient envelope key is:
 The client fetches its own envelope and unwraps it with its account private key.
 It must verify the conversation ID and key version against the requested
 conversation.
+
+The implemented server endpoints are:
+
+| Method | Path | Purpose |
+|---|---|---|
+| `PUT` | `/api/conversations/:id/key-envelopes/:recipient_id` | Store a wrapped key for an active participant |
+| `GET` | `/api/conversations/:id/key-envelopes/me` | Retrieve the caller's latest envelope |
+
+The sender must be an active conversation participant. The recipient must also
+be active. Envelope storage does not verify RSA ciphertext cryptographically
+at rest; the recipient verifies it by successful RSA-OAEP decryption.
 
 ### 3.4 Send a direct message
 

@@ -133,7 +133,7 @@ CREATE TABLE IF NOT EXISTS conversations (
   type ENUM('direct', 'group') NOT NULL,
   name VARCHAR(255) NULL,
   owner_id BINARY(16) NULL,
-  direct_key VARCHAR(64) NULL,
+  direct_key VARCHAR(74) NULL,
   current_key_version INT UNSIGNED NOT NULL DEFAULT 1,
   deleted_at DATETIME NULL,
   deleted_by BINARY(16) NULL,
@@ -205,6 +205,8 @@ CREATE TABLE IF NOT EXISTS revoked_access_tokens (
   INDEX idx_revoked_access_tokens_user_expires (user_id, expires_at),
   CONSTRAINT fk_revoked_access_tokens_user FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB;
+
+ALTER TABLE conversations MODIFY direct_key VARCHAR(74) NULL;
 SQL
 
 {

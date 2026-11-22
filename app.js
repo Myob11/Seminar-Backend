@@ -9,6 +9,7 @@ var healthRouter = require('./routes/health');
 var usersRouter = require('./routes/users');
 var authRouter = require('./routes/auth');
 var friendsRouter = require('./routes/friends');
+var conversationsRouter = require('./routes/conversations');
 var docsRouter = require('./routes/docs');
 
 var app = express();
@@ -27,6 +28,7 @@ app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/friends', friendsRouter);
+app.use('/api/conversations', conversationsRouter);
 app.use('/api/docs', docsRouter);
 
 app.get('/demo', function(req, res) {

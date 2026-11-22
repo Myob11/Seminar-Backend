@@ -410,6 +410,106 @@ Invalid values return `400 INVALID_PRIVATE_KEY_BACKUP`. The server stores
 ciphertext and derivation metadata but cannot recover or inspect the plaintext
 RSA private key.
 
+## Direct conversations
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `POST` | `/api/conversations/direct` | JWT | Create or return the canonical direct conversation with a friend |
+| `GET` | `/api/conversations/direct` | JWT | List the authenticated user's direct conversations |
+| `GET` | `/api/conversations/:id` | JWT | Read a direct conversation to which the user belongs |
+
+Creation accepts the other user's UUID:
+
+```json
+{
+  "recipient_id": "99e79d8f-1ae4-43c8-b657-4f9be44d57c9"
+}
+```
+
+The server requires an accepted friendship and rejects self-conversations.
+Direct conversations use a canonical pair key formed by sorting both UUIDs and
+joining them with `:`. The unique key prevents duplicate direct conversations.
+
+Successful creation or lookup returns `200`:
+
+```json
+{
+  "id": "2d7f7fcb-9206-4d29-a1cf-a5eb1b29e7a4",
+  "type": "direct",
+  "current_key_version": 1
+}
+```
+
+Creating the direct chat creates conversation metadata only. The conversation
+creator and active participants still generate and submit RSA-OAEP wrapped
+AES conversation keys in key-envelope requests.
+
+### Direct-conversation key envelopes
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `PUT` | `/api/conversations/:id/key-envelopes/:recipient_id` | JWT | Store an RSA-OAEP envelope for an active participant |
+| `GET` | `/api/conversations/:id/key-envelopes/me` | JWT | Retrieve the caller's latest envelope |
+
+An envelope request contains:
+
+```json
+{
+  "key_version": 1,
+  "encrypted_conversation_key": "<base64 RSA-OAEP ciphertext>"
+}
+```
+
+The ciphertext must be base64 encoded, contain 256-512 bytes, and contain only
+the RSA-OAEP wrapped 32-byte AES conversation key. The key version must equal
+the conversation's current key version.
+
+The sender must be an active participant. The recipient must also be an active
+participant. A duplicate `(conversation_id, recipient_user_id, key_version)`
+combination is rejected.
+
+For initial direct-conversation setup, the conversation creator generates one
+32-byte AES conversation key, wraps it with both participants' RSA public
+keys, and sends two PUT requests. The creator sends one envelope to its own
+user ID and one envelope to the friend's user ID. The server does not require
+both users to generate or upload the initial key.
+
+In the URL, `:recipient_id` is the UUID of the account whose RSA public key
+was used to wrap that exact ciphertext. The same conversation key and key
+version must be used in both requests, but the ciphertext differs because each
+envelope is encrypted for a different RSA public key.
+
+Successful storage returns `201` with:
+
+```json
+{
+  "conversation_id": "2d7f7fcb-9206-4d29-a1cf-a5eb1b29e7a4",
+  "recipient_user_id": "99e79d8f-1ae4-43c8-b657-4f9be44d57c9",
+  "key_version": 1,
+  "encrypted_conversation_key": "<base64 RSA-OAEP ciphertext>"
+}
+```
+
+Errors:
+
+- `400 INVALID_CONVERSATION_ID` for an invalid conversation UUID.
+- `404 CONVERSATION_NOT_FOUND` for an unknown or inactive membership.
+- `400 INVALID_USER_ID` for an invalid recipient UUID.
+- `404 KEY_ENVELOPE_RECIPIENT_NOT_FOUND` if the recipient is not an active participant.
+- `400 INVALID_KEY_VERSION` if the version differs from the current version.
+- `400 INVALID_KEY_ENVELOPE` for invalid base64 or ciphertext length.
+- `409 KEY_ENVELOPE_EXISTS` for an existing recipient/version envelope.
+- `404 KEY_ENVELOPE_NOT_FOUND` if no envelope exists for the caller.
+
+Errors:
+
+- `400 INVALID_USER_ID` for an invalid recipient UUID.
+- `400 INVALID_DIRECT_CONVERSATION` for a self-conversation.
+- `404 USER_NOT_FOUND` if the recipient does not exist.
+- `403 DIRECT_CONVERSATION_FORBIDDEN` unless an accepted friendship exists.
+- `400 INVALID_CONVERSATION_ID` for an invalid conversation UUID.
+- `404 CONVERSATION_NOT_FOUND` if the conversation is unknown or inaccessible.
+
 ## Friendships
 
 | Method | Path | Auth | Purpose |

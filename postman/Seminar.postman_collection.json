@@ -642,6 +642,215 @@
       ]
     },
     {
+      "name": "Direct conversations",
+      "item": [
+        {
+          "name": "Create or get direct conversation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Direct conversation succeeds', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var body = pm.response.json();",
+                  "if (body.id) {",
+                  "    pm.environment.set('conversationId', body.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recipient_id\": \"{{friendUserId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/conversations/direct",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "conversations",
+                "direct"
+              ]
+            },
+            "description": "Create or return a direct conversation with an accepted friend."
+          },
+          "response": []
+        },
+        {
+          "name": "List direct conversations",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/conversations/direct",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "conversations",
+                "direct"
+              ]
+            },
+            "description": "List direct conversations for the authenticated user."
+          },
+          "response": []
+        },
+        {
+            "name": "Store key envelope",
+            "event": [
+              {
+                "listen": "prerequest",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "var recipientId = pm.environment.get('recipientId');",
+                    "if (!recipientId) {",
+                    "    throw new Error('Set recipientId to the user whose RSA public key wrapped the envelope.');",
+                    "}"
+                  ]
+                }
+              }
+            ],
+            "request": {
+              "auth": {
+                "type": "bearer",
+                "bearer": [
+                  {
+                    "key": "token",
+                    "value": "{{accessToken}}",
+                    "type": "string"
+                  }
+                ]
+              },
+              "method": "PUT",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"key_version\": 1,\n  \"encrypted_conversation_key\": \"{{keyEnvelopeCiphertext}}\"\n}"
+              },
+              "url": {
+                "raw": "{{baseUrl}}/api/conversations/{{conversationId}}/key-envelopes/{{recipientId}}",
+                "host": [
+                  "{{baseUrl}}"
+                ],
+                "path": [
+                  "api",
+                  "conversations",
+                  "{{conversationId}}",
+                  "key-envelopes",
+                  "{{recipientId}}"
+                ]
+              },
+              "description": "Store an RSA-OAEP wrapped conversation key for an active recipient."
+            },
+            "response": []
+        },
+        {
+            "name": "Get my key envelope",
+            "request": {
+              "auth": {
+                "type": "bearer",
+                "bearer": [
+                  {
+                    "key": "token",
+                    "value": "{{accessToken}}",
+                    "type": "string"
+                  }
+                ]
+              },
+              "method": "GET",
+              "header": [],
+              "url": {
+                "raw": "{{baseUrl}}/api/conversations/{{conversationId}}/key-envelopes/me",
+                "host": [
+                  "{{baseUrl}}"
+                ],
+                "path": [
+                  "api",
+                  "conversations",
+                  "{{conversationId}}",
+                  "key-envelopes",
+                  "me"
+                ]
+              },
+              "description": "Get the latest key envelope for the authenticated participant."
+            },
+            "response": []
+        },
+        {
+            "name": "Get direct conversation",
+            "request": {
+              "auth": {
+                "type": "bearer",
+                "bearer": [
+                  {
+                    "key": "token",
+                    "value": "{{accessToken}}",
+                    "type": "string"
+                  }
+                ]
+              },
+              "method": "GET",
+              "header": [],
+              "url": {
+                "raw": "{{baseUrl}}/api/conversations/{{conversationId}}",
+                "host": [
+                  "{{baseUrl}}"
+                ],
+                "path": [
+                  "api",
+                  "conversations",
+                  "{{conversationId}}"
+                ]
+              },
+              "description": "Read a direct conversation for the authenticated user."
+            },
+            "response": []
+        }
+      ]
+    },
+    {
       "name": "Friends",
       "item": [
         {
