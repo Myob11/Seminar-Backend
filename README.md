@@ -1,84 +1,82 @@
 # Seminar Backend
 
-Backend for the Seminar chat application, built with Node.js and Express.js.
-The backend will support Android and browser clients through a REST API and
-authenticated WebSocket connections.
+Seminar is a Node.js and Express chat backend for Android and browser clients.
+It provides JWT-authenticated REST APIs, MySQL-backed accounts and friendships,
+profile pictures, direct conversations, RSA public keys and private-key backups,
+and RSA-OAEP conversation-key envelopes.
 
-## Status
-
-The project is currently an Express starter application. The chat backend will
-be implemented incrementally, beginning with the backend foundation and
-authentication. The database schema, API contract, and end-to-end encryption
-protocol are not finalized.
-
-## Planned capabilities
-
-- User registration, login, and JWT-protected sessions
-- User profiles and profile-picture management
-- Friend requests and accepted friendships
-- Multiple devices and public-key management
-- Encrypted conversations and messages
-- Real-time messaging over authenticated WebSockets
-- Android and browser clients
-
-## Technology
+## Requirements
 
 - Node.js
-- Express.js
-- EJS for the current starter view
-- MySQL (under consideration; database access will remain modular)
-- Passport.js and JWT for authentication
-- WebSocket for real-time messaging
+- npm
+- MySQL
+- OpenSSL or Bash password-generation support for database setup
 
-## Project structure
+## Installation
 
-```text
-Seminar/
-├── app.js
-├── bin/
-│   └── www
-├── docs/
-│   ├── api.md
-│   ├── mysql-layout.md
-│   └── project-context.md
-├── seminar.service
-├── public/
-├── routes/
-├── views/
-├── package.json
-└── package-lock.json
-```
-
-The application is currently organized using the generated Express structure.
-As implementation begins, feature code will be moved into modular areas under
-`src/`, with routes, business logic, and data access kept separate.
-
-## Running locally
-
-Install dependencies:
+Install the Node.js dependencies:
 
 ```bash
 npm install
 ```
 
-Start the application in development mode:
+Create the local environment file with database and JWT settings:
+
+```bash
+cp .env.example .env
+chmod 600 .env
+```
+
+If `.env.example` is not available in the deployment, create `.env` with:
+
+```text
+PORT=3000
+JWT_SECRET=<random-server-only-secret>
+JWT_EXPIRES_IN=1h
+
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=seminar
+DB_USER=seminar_app
+DB_PASSWORD=<database-password>
+```
+
+Do not commit `.env` or share `JWT_SECRET` or `DB_PASSWORD`.
+
+Initialize or update the MySQL schema:
+
+```bash
+npm run db:setup
+```
+
+The setup script uses `IF NOT EXISTS` operations and preserves existing database
+contents.
+
+## Running locally
+
+Run the development server:
 
 ```bash
 npm run dev
 ```
 
-Start the application normally:
+Run the server normally:
 
 ```bash
 npm start
 ```
 
-The server listens on port `3000` by default. Set `PORT` to use another port.
+The server listens on `http://127.0.0.1:3000` unless `PORT` is changed.
 
-## Running as a service
+Check the service:
 
-The development server can run as a user-level systemd service. Install the
-unit from the repository directory:
+```text
+GET /api/health
+```
+
+## Running as a user service
+
+Install the provided systemd user service:
 
 ```bash
 mkdir -p ~/.config/systemd/user
@@ -87,62 +85,39 @@ systemctl --user daemon-reload
 systemctl --user enable --now seminar.service
 ```
 
-To keep the service running after the machine boots, even before an interactive
-login, enable lingering for the application user:
+Keep the user service running after logout:
 
 ```bash
 sudo loginctl enable-linger "$USER"
 ```
 
-Check the service and view its logs:
+Useful commands:
 
 ```bash
 systemctl --user status seminar.service
+systemctl --user restart seminar.service
 journalctl --user -u seminar.service -f
 ```
 
-The service runs `npm run dev`, which uses Nodemon and is intended for
-development. A production deployment should use `npm start` or a process
-manager instead.
-
-## Health check
-
-The health endpoint confirms that the Express server is running:
-
-```text
-GET /api/health
-```
-
-Successful responses return HTTP `200` with a small JSON confirmation. Errors
-are handled by the application error middleware and return the corresponding
-HTTP error status.
-
 ## API documentation
 
-The rendered API contract is available at:
+The live rendered API documentation is available at:
 
 ```text
 https://backend.kbnet.si/api/docs
 ```
 
-## Development principles
+The encryption protocol documentation is at:
 
-- Do not commit credentials, private keys, plaintext messages, or decrypted
-  encryption keys.
-- Keep secrets in environment variables.
-- Use parameterized queries or a reputable database library.
-- Validate request bodies, parameters, uploaded files, and pagination values.
-- Authorize every conversation and message operation for the authenticated
-  user.
-- Do not finalize database migrations until the data model is approved.
-- Do not treat the initial E2EE proposal as a finalized cryptographic protocol.
+```text
+https://backend.kbnet.si/api/docs/encryption
+```
 
-## Documentation
+Repository documentation sources:
 
-The API documentation is in [`docs/api.md`](docs/api.md). It is an evolving
-contract and should be updated alongside endpoint changes. The initial database
-plan is in [`docs/mysql-layout.md`](docs/mysql-layout.md). The project handoff
-and decision history is in
-[`docs/project-context.md`](docs/project-context.md).
-The client cryptographic protocol is documented in
-[`docs/encryption.md`](docs/encryption.md).
+- [`docs/api.md`](docs/api.md) - public API contract
+- [`docs/encryption.md`](docs/encryption.md) - client cryptography protocol
+- [`docs/mysql-layout.md`](docs/mysql-layout.md) - private database reference
+- [`docs/project-context.md`](docs/project-context.md) - private project handoff
+
+The hosted API and encryption pages read the Markdown files directly.
