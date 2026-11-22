@@ -108,7 +108,6 @@ Repository documentation sources:
 
 - [`docs/api.md`](docs/api.md) - public API contract
 - [`docs/encryption.md`](docs/encryption.md) - client cryptography protocol
-- `docs/mysql-layout.md` - private database reference, not published on GitHub
-- `docs/project-context.md` - private project handoff, not published on GitHub
+
 
 The hosted API and encryption pages read the Markdown files directly.
