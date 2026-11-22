@@ -109,5 +109,4 @@ Repository documentation sources:
 - [`docs/api.md`](docs/api.md) - public API contract
 - [`docs/encryption.md`](docs/encryption.md) - client cryptography protocol
 
-
 The hosted API and encryption pages read the Markdown files directly.

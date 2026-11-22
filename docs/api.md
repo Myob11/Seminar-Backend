@@ -51,6 +51,20 @@ The endpoint returns HTTP `200` only when the request is handled successfully.
 Unexpected failures are passed to the centralized error handler, which returns
 the corresponding HTTP error status.
 
+There are no path, query, headers, or body parameters beyond the optional
+standard HTTP request headers.
+
+## Documentation
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `GET` | `/api/docs` | Public | Render the public API contract |
+| `GET` | `/api/docs/encryption` | Public | Render the end-to-end encryption client guide |
+| `GET` | `/api/docs/encryption.md` | Public | Download the encryption guide as Markdown |
+
+These endpoints have no path, query, or body parameters. They set
+`Cache-Control: no-store` and require no bearer token.
+
 ## Authentication
 
 | Method | Path | Auth | Purpose |
@@ -351,6 +365,15 @@ Path parameters:
 `DELETE /api/users/me/profile-picture` removes the database reference and
 the stored file. It is safe when no profile picture exists.
 
+Endpoint:
+
+```http
+DELETE /api/users/me/profile-picture
+Authorization: Bearer <jwt-access-token>
+```
+
+This endpoint has no path, query, or body parameters.
+
 Only the authenticated user may change or remove their profile picture.
 Uploading a new picture replaces the existing picture. The old file may be
 deleted after the database update succeeds.
@@ -416,6 +439,15 @@ returns:
 `GET /api/users/me/public-key` and `GET /api/users/:id/public-key` return the
 same representation. If no key has been set, `rsa_public_key` is `null`.
 Invalid keys return `400 INVALID_RSA_PUBLIC_KEY`.
+
+For `GET /api/users/:id/public-key`, the path parameter is:
+
+| Parameter | Type | Required | Description |
+|---|---|---:|---|
+| `id` | UUID | Yes | ID of the user whose public key is requested. |
+
+No public-key endpoint accepts query or body parameters. `PUT` requires the
+single `rsa_public_key` JSON body field; `GET` endpoints require only the JWT.
 
 ## RSA private-key backups
 
@@ -533,6 +565,15 @@ Successful creation or lookup returns `200`:
 }
 ```
 
+For `GET /api/conversations/:id`, the path parameter is:
+
+| Parameter | Type | Required | Description |
+|---|---|---:|---|
+| `id` | UUID | Yes | Direct conversation ID. The caller must be an active participant. |
+
+The current direct-conversation response has no recipient or participant data;
+use `GET /api/conversations/direct` to retrieve the recipient profile summary.
+
 Creating the direct chat creates conversation metadata only. The conversation
 creator and active participants still generate and submit RSA-OAEP wrapped
 AES conversation keys in key-envelope requests.
@@ -647,6 +688,35 @@ Endpoint-specific path parameters:
 | `POST /api/friends/requests/:id/accept` | Friendship request ID |
 | `POST /api/friends/requests/:id/decline` | Friendship request ID |
 | `DELETE /api/friends/:id` | Accepted friend's user ID |
+
+Example pending request response (`201 Created`):
+
+```json
+{
+  "id": "fd1e0637-c5b3-4d9e-b5de-d7c204fbecf3",
+  "requester_id": "99e79d8f-1ae4-43c8-b657-4f9be44d57c9",
+  "addressee_id": "b3ac5124-a8dd-4edc-9363-4029d9bb9cc7",
+  "status": "pending"
+}
+```
+
+Accepted-friend responses expose public profile fields. Pending incoming
+responses expose the friendship ID, requester public profile, status, and
+creation timestamp.
+
+Common friendship errors:
+
+| Status | Code | Cause |
+|---:|---|---|
+| `400` | `INVALID_USER_ID` | A recipient or friend UUID is invalid. |
+| `400` | `INVALID_FRIENDSHIP_ID` | An accept/decline friendship request ID is invalid. |
+| `404` | `USER_NOT_FOUND` | Recipient user does not exist. |
+| `404` | `FRIENDSHIP_NOT_FOUND` | Request or accepted friendship does not exist. |
+| `400` | `SELF_FRIENDSHIP` | Request is sent to the authenticated user. |
+| `403` | `FRIENDSHIP_FORBIDDEN` | Accept/decline is attempted by a non-recipient. |
+| `409` | `FRIENDSHIP_EXISTS` | A pending or accepted relationship already exists. |
+| `409` | `FRIENDSHIP_BLOCKED` | A blocked relationship exists. |
+| `409` | `FRIENDSHIP_NOT_PENDING` | Accept/decline is used after the request changed state. |
 
 The initial status is `pending`. Accepting changes it to `accepted`; declining
 changes it to `declined`. An accepted friendship is bidirectional for reads and
