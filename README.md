@@ -5,6 +5,11 @@ It provides JWT-authenticated REST APIs, MySQL-backed accounts and friendships,
 profile pictures, direct conversations, RSA public keys and private-key backups,
 and RSA-OAEP conversation-key envelopes.
 
+## Documentation
+
+- [Live API documentation](https://backend.kbnet.si/api/docs)
+- [Encryption protocol documentation](https://backend.kbnet.si/api/docs/encryption)
+
 ## Requirements
 
 - Node.js
@@ -99,25 +104,11 @@ systemctl --user restart seminar.service
 journalctl --user -u seminar.service -f
 ```
 
-## API documentation
-
-The live rendered API documentation is available at:
-
-```text
-https://backend.kbnet.si/api/docs
-```
-
-The encryption protocol documentation is at:
-
-```text
-https://backend.kbnet.si/api/docs/encryption
-```
-
 Repository documentation sources:
 
 - [`docs/api.md`](docs/api.md) - public API contract
 - [`docs/encryption.md`](docs/encryption.md) - client cryptography protocol
-- [`docs/mysql-layout.md`](docs/mysql-layout.md) - private database reference
-- [`docs/project-context.md`](docs/project-context.md) - private project handoff
+- `docs/mysql-layout.md` - private database reference, not published on GitHub
+- `docs/project-context.md` - private project handoff, not published on GitHub
 
 The hosted API and encryption pages read the Markdown files directly.
