@@ -51,7 +51,7 @@ Do not commit `.env` or share `JWT_SECRET` or `DB_PASSWORD`.
 Initialize or update the MySQL schema:
 
 ```bash
-npm run db:setup
+bash scripts/setup_mysql.sh
 ```
 
 The setup script uses `IF NOT EXISTS` operations and preserves existing database

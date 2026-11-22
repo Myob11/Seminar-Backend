@@ -5,6 +5,7 @@ var friends = require('../repositories/friends');
 var users = require('../repositories/users');
 var conversations = require('../repositories/conversations');
 var keyEnvelopes = require('../repositories/key_envelopes');
+var messages = require('../repositories/messages');
 var ApiError = require('../errors');
 
 var router = express.Router();
@@ -71,6 +72,41 @@ function envelopeResponse(envelope) {
     recipient_user_id: envelope.recipient_user_id,
     key_version: envelope.key_version,
     encrypted_conversation_key: Buffer.from(envelope.encrypted_conversation_key).toString('base64')
+  };
+}
+
+function decodeMessageField(value, fieldName, minimumBytes, maximumBytes) {
+  if (
+    typeof value !== 'string' ||
+    value.length === 0 ||
+    value.length > 2 * 65536 ||
+    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)
+  ) {
+    throw new ApiError(400, 'INVALID_ENCRYPTED_MESSAGE', fieldName + ' must be valid base64.');
+  }
+
+  var decoded = Buffer.from(value, 'base64');
+  if (
+    decoded.length < minimumBytes ||
+    decoded.length > maximumBytes ||
+    decoded.toString('base64') !== value
+  ) {
+    throw new ApiError(400, 'INVALID_ENCRYPTED_MESSAGE', fieldName + ' has an invalid length.');
+  }
+
+  return decoded;
+}
+
+function messageResponse(message) {
+  return {
+    id: message.id,
+    conversation_id: message.conversation_id,
+    sender_id: message.sender_id,
+    key_version: message.key_version,
+    ciphertext: Buffer.from(message.ciphertext).toString('base64'),
+    nonce: Buffer.from(message.nonce).toString('base64'),
+    auth_tag: Buffer.from(message.auth_tag).toString('base64'),
+    created_at: message.created_at
   };
 }
 
@@ -173,6 +209,108 @@ router.get('/:id/key-envelopes/me', authenticate, async function(req, res, next)
     }
 
     res.status(200).json(envelopeResponse(envelope));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/:id/messages', authenticate, async function(req, res, next) {
+  try {
+    if (!uuidPattern.test(req.params.id)) {
+      throw new ApiError(400, 'INVALID_CONVERSATION_ID', 'Conversation ID must be a valid UUID.');
+    }
+
+    var conversation = await conversations.findDirectForUser(req.params.id, req.user.id);
+    if (!conversation) {
+      throw new ApiError(404, 'CONVERSATION_NOT_FOUND', 'Conversation was not found or you are not an active participant.');
+    }
+
+    var keyVersion = req.body && req.body.key_version;
+    if (!Number.isInteger(keyVersion) || keyVersion !== conversation.current_key_version) {
+      throw new ApiError(400, 'INVALID_KEY_VERSION', 'key_version must equal the current conversation key version.');
+    }
+
+    var ciphertext = decodeMessageField(req.body.ciphertext, 'ciphertext', 1, 65536);
+    var nonce = decodeMessageField(req.body.nonce, 'nonce', 12, 12);
+    var authTag = decodeMessageField(req.body.auth_tag, 'auth_tag', 16, 16);
+
+    var message = await messages.create(
+      req.params.id,
+      req.user.id,
+      keyVersion,
+      ciphertext,
+      nonce,
+      authTag
+    );
+
+    res.status(201).json(messageResponse(message));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/:id/messages', authenticate, async function(req, res, next) {
+  try {
+    if (!uuidPattern.test(req.params.id)) {
+      throw new ApiError(400, 'INVALID_CONVERSATION_ID', 'Conversation ID must be a valid UUID.');
+    }
+
+    var conversation = await conversations.findDirectForUser(req.params.id, req.user.id);
+    if (!conversation) {
+      throw new ApiError(404, 'CONVERSATION_NOT_FOUND', 'Conversation was not found or you are not an active participant.');
+    }
+
+    var limit = req.query.limit === undefined ? 50 : Number(req.query.limit);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+      throw new ApiError(400, 'INVALID_MESSAGE_LIMIT', 'limit must be an integer from 1 through 100.');
+    }
+
+    var cursor = null;
+    if (req.query.before !== undefined) {
+      cursor = messages.decodeCursor(req.query.before);
+      if (!cursor) {
+        throw new ApiError(400, 'INVALID_MESSAGE_CURSOR', 'before must be a valid message cursor.');
+      }
+    }
+
+    var page = await messages.list(req.params.id, limit, cursor);
+    res.status(200).json({
+      messages: page.messages.map(messageResponse),
+      next_cursor: page.next_cursor,
+      has_more: page.has_more
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/:id/messages/:message_id', authenticate, async function(req, res, next) {
+  try {
+    if (!uuidPattern.test(req.params.id)) {
+      throw new ApiError(400, 'INVALID_CONVERSATION_ID', 'Conversation ID must be a valid UUID.');
+    }
+    if (!uuidPattern.test(req.params.message_id)) {
+      throw new ApiError(400, 'INVALID_MESSAGE_ID', 'Message ID must be a valid UUID.');
+    }
+
+    var conversation = await conversations.findDirectForUser(req.params.id, req.user.id);
+    if (!conversation) {
+      throw new ApiError(404, 'CONVERSATION_NOT_FOUND', 'Conversation was not found or you are not an active participant.');
+    }
+
+    var message = await messages.find(req.params.id, req.params.message_id);
+    if (!message) {
+      throw new ApiError(404, 'MESSAGE_NOT_FOUND', 'Message was not found.');
+    }
+    if (message.deleted_at) {
+      throw new ApiError(409, 'MESSAGE_ALREADY_DELETED', 'Message is already deleted.');
+    }
+    if (message.sender_id !== req.user.id) {
+      throw new ApiError(403, 'MESSAGE_FORBIDDEN', 'Only the sender can delete this message.');
+    }
+
+    await messages.softDelete(req.params.id, req.params.message_id, req.user.id);
+    res.status(200).json({ deleted: true, id: message.id });
   } catch (error) {
     next(error);
   }

@@ -36,6 +36,8 @@
 |---|---|---|---|
 | `GET` | `/api/health` | Public | Confirm that the backend is running |
 
+This endpoint has no path, query, or body parameters.
+
 Successful response:
 
 ```json
@@ -57,6 +59,18 @@ the corresponding HTTP error status.
 | `POST` | `/api/auth/login` | Public | Authenticate and issue a JWT |
 | `POST` | `/api/auth/logout` | JWT | Revoke the presented access token |
 | `GET` | `/api/auth/me` | JWT | Return the authenticated user's profile |
+
+### Request parameters
+
+Registration and login share this JSON body:
+
+| Parameter | Type | Required | Description |
+|---|---|---:|---|
+| `username` | string | Yes | 3-64 lowercase letters, numbers, or underscores after normalization. |
+| `password` | string | Yes | 12-200 characters. |
+
+Logout and `/auth/me` use no query or JSON body parameters. `/auth/me` uses
+only the bearer token in the `Authorization` header.
 
 Protected authentication requests use:
 
@@ -201,6 +215,19 @@ with `401 INVALID_TOKEN`.
 
 ### View a user profile
 
+Endpoint:
+
+```http
+GET /api/users/:id
+Authorization: Bearer <jwt-access-token>
+```
+
+Path parameters:
+
+| Parameter | Type | Required | Description |
+|---|---|---:|---|
+| `id` | UUID | Yes | Public ID of the user to view. |
+
 `GET /api/users/:id` requires a bearer JWT. The `id` parameter must be a valid
 UUID. Successful responses return only public profile fields.
 
@@ -225,6 +252,19 @@ Invalid UUIDs return `400 INVALID_USER_ID`. Unknown users return
 `404 USER_NOT_FOUND`.
 
 ### Search users
+
+Endpoint:
+
+```http
+GET /api/users/search?q=<query>
+Authorization: Bearer <jwt-access-token>
+```
+
+Query parameters:
+
+| Parameter | Type | Required | Description |
+|---|---|---:|---|
+| `q` | string | Yes | 1-64 characters. Matching is case-insensitive username substring matching. |
 
 `GET /api/users/search?q=...` requires a bearer JWT. The `q` parameter must
 contain 1-64 characters. Matches are case-insensitive username substring
@@ -254,6 +294,20 @@ web root. The server may resize or re-encode the image, generate a controlled
 filename, and store a disk-relative path or public-view URL in MySQL.
 
 ### Profile picture upload
+
+Endpoint:
+
+```http
+POST /api/users/me/profile-picture
+Authorization: Bearer <jwt-access-token>
+Content-Type: multipart/form-data
+```
+
+Multipart parameters:
+
+| Parameter | Type | Required | Description |
+|---|---|---:|---|
+| `profile_picture` | file | Yes | Actual JPEG, PNG, or WebP image, at most 5 MB. |
 
 `POST /api/users/me/profile-picture` requires a bearer JWT and accepts a
 single multipart field named `profile_picture`.
@@ -287,6 +341,12 @@ Success response:
 
 The public profile picture route is
 `GET /api/users/profile-pictures/:filename`.
+
+Path parameters:
+
+| Parameter | Type | Required | Description |
+|---|---|---:|---|
+| `filename` | string | Yes | Server-generated UUID PNG filename. |
 
 `DELETE /api/users/me/profile-picture` removes the database reference and
 the stored file. It is safe when no profile picture exists.
@@ -327,6 +387,18 @@ The public key body format is a PEM-encoded RSA SubjectPublicKeyInfo key:
   "rsa_public_key": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
 }
 ```
+
+Body parameters:
+
+| Parameter | Type | Required | Description |
+|---|---|---:|---|
+| `rsa_public_key` | PEM string | Yes | RSA public key, PEM/SPKI, at least 2048 bits. |
+
+Path parameters for the public-key lookup:
+
+| Parameter | Type | Required | Description |
+|---|---|---:|---|
+| `id` | UUID | Yes | ID of the user whose public key is requested. |
 
 The server accepts only RSA public keys with a modulus of at least 2048 bits.
 It canonicalizes a valid key as PEM-encoded SubjectPublicKeyInfo before
@@ -372,6 +444,17 @@ scrypt, then encrypts the PKCS#8 RSA private-key bytes with AES-256-GCM.
   "private_key_backup_auth_tag": "<base64 16-byte authentication tag>"
 }
 ```
+
+Body parameters:
+
+| Parameter | Type | Required | Description |
+|---|---|---:|---|
+| `encrypted_rsa_private_key` | base64 string | Yes | AES-GCM ciphertext containing the PKCS#8 RSA private key, 1-65536 bytes. |
+| `private_key_kdf` | string | Yes | `scrypt` or `argon2id`. |
+| `private_key_kdf_parameters` | object | Yes | KDF parameters valid for the selected KDF. |
+| `private_key_backup_salt` | base64 string | Yes | Exactly 32 bytes. |
+| `private_key_backup_nonce` | base64 string | Yes | Exactly 12 bytes. |
+| `private_key_backup_auth_tag` | base64 string | Yes | Exactly 16 bytes. |
 
 The accepted KDFs are `scrypt` and `argon2id`.
 
@@ -426,6 +509,16 @@ Creation accepts the other user's UUID:
 }
 ```
 
+Body parameters:
+
+| Parameter | Type | Required | Description |
+|---|---|---:|---|
+| `recipient_id` | UUID | Yes | Accepted friend who will participate in the direct conversation. |
+
+The endpoint has no query parameters. `GET /api/conversations/direct` has no
+parameters. For `GET /api/conversations/:id`, `id` is the required conversation
+UUID path parameter.
+
 The server requires an accepted friendship and rejects self-conversations.
 Direct conversations use a canonical pair key formed by sorting both UUIDs and
 joining them with `:`. The unique key prevents duplicate direct conversations.
@@ -459,6 +552,15 @@ An envelope request contains:
   "encrypted_conversation_key": "<base64 RSA-OAEP ciphertext>"
 }
 ```
+
+Path and body parameters:
+
+| Location | Parameter | Type | Required | Description |
+|---|---|---|---:|---|
+| Path | `id` | UUID | Yes | Direct conversation ID. |
+| Path | `recipient_id` | UUID | Yes | User whose RSA public key wrapped the ciphertext. |
+| Body | `key_version` | integer | Yes | Must equal the conversation's current key version. |
+| Body | `encrypted_conversation_key` | base64 string | Yes | RSA-OAEP ciphertext of the 32-byte AES conversation key. |
 
 The ciphertext must be base64 encoded, contain 256-512 bytes, and contain only
 the RSA-OAEP wrapped 32-byte AES conversation key. The key version must equal
@@ -531,6 +633,21 @@ recipient becomes `addressee_id`.
 }
 ```
 
+Parameters:
+
+| Location | Parameter | Type | Required | Description |
+|---|---|---|---:|---|
+| Body | `recipient_id` | UUID | Yes | User who should receive the friend request. |
+| Path | `id` | UUID | Yes | Friendship/request or friend user ID, depending on the endpoint. |
+
+Endpoint-specific path parameters:
+
+| Endpoint | `id` describes |
+|---|---|
+| `POST /api/friends/requests/:id/accept` | Friendship request ID |
+| `POST /api/friends/requests/:id/decline` | Friendship request ID |
+| `DELETE /api/friends/:id` | Accepted friend's user ID |
+
 The initial status is `pending`. Accepting changes it to `accepted`; declining
 changes it to `declined`. An accepted friendship is bidirectional for reads and
 direct-conversation authorization even though the database stores one direction.
@@ -556,14 +673,193 @@ implementation.
 
 ## Conversations and messages
 
-The following operations are planned. Exact paths and representations will be
-defined after the conversation and message data model is approved:
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `POST` | `/api/conversations/:id/messages` | JWT | Store an encrypted direct message |
+| `GET` | `/api/conversations/:id/messages` | JWT | Retrieve paginated encrypted history |
+| `DELETE` | `/api/conversations/:id/messages/:message_id` | JWT | Soft-delete a message sent by the authenticated user |
 
-- Create and list conversations
-- Retrieve conversation participants
-- Store and retrieve encrypted conversation-key envelopes
-- Send encrypted messages
-- Retrieve paginated encrypted message history
+Every operation verifies active conversation membership. The backend stores and
+returns only ciphertext, nonce, authentication tag, sender ID, and key version.
+
+### Send an encrypted message
+
+Endpoint:
+
+```http
+POST /api/conversations/:id/messages
+Authorization: Bearer <jwt-access-token>
+Content-Type: application/json
+```
+
+Path parameters:
+
+| Parameter | Type | Required | Description |
+|---|---|---:|---|
+| `id` | UUID | Yes | ID of the direct conversation. |
+
+Body parameters:
+
+| Parameter | Type | Required | Description |
+|---|---|---:|---|
+| `key_version` | integer | Yes | Must equal the conversation's current `current_key_version`. |
+| `ciphertext` | base64 string | Yes | AES-GCM ciphertext containing 1-65536 decoded bytes. |
+| `nonce` | base64 string | Yes | Fresh 12-byte AES-GCM nonce. |
+| `auth_tag` | base64 string | Yes | 16-byte AES-GCM authentication tag. |
+
+Example request:
+
+```json
+{
+  "key_version": 1,
+  "ciphertext": "AQLs9sFz...",
+  "nonce": "AAAAAAAAAAAAAAAA",
+  "auth_tag": "AAAAAAAAAAAAAAAAAAAAAA=="
+}
+```
+
+The ciphertext must contain 1-65536 bytes. The nonce must contain exactly 12
+bytes and the authentication tag exactly 16 bytes. `key_version` must equal the
+conversation's current key version.
+
+Example success response (`201 Created`):
+
+```json
+{
+  "id": "e2eaccc7-ae03-4e89-bb7e-c9cf5c0e6f7e",
+  "conversation_id": "2d7f7fcb-9206-4d29-a1cf-a5eb1b29e7a4",
+  "sender_id": "99e79d8f-1ae4-43c8-b657-4f9be44d57c9",
+  "key_version": 1,
+  "ciphertext": "AQLs9sFz...",
+  "nonce": "AAAAAAAAAAAAAAAA",
+  "auth_tag": "AAAAAAAAAAAAAAAAAAAAAA==",
+  "created_at": "2026-11-22T20:17:10.123456Z"
+}
+```
+
+Send errors:
+
+| Status | Code | Cause |
+|---:|---|---|
+| `400` | `INVALID_CONVERSATION_ID` | `id` is not a valid UUID. |
+| `404` | `CONVERSATION_NOT_FOUND` | Conversation is unknown or caller is not an active participant. |
+| `400` | `INVALID_KEY_VERSION` | `key_version` differs from the conversation's current version. |
+| `400` | `INVALID_ENCRYPTED_MESSAGE` | Ciphertext, nonce, or authentication tag is malformed or wrong-length. |
+
+### Paginated message history
+
+Endpoint:
+
+```text
+GET /api/conversations/:id/messages
+```
+
+Path parameters:
+
+| Parameter | Type | Required | Description |
+|---|---|---:|---|
+| `id` | UUID | Yes | ID of the direct conversation. |
+
+Query parameters:
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---:|---:|---|
+| `limit` | integer | No | `50` | Messages per page, from `1` through `100`. |
+| `before` | opaque base64url cursor | No | none | Return messages older than this cursor. |
+
+Example request:
+
+```http
+GET /api/conversations/2d7f7fcb-9206-4d29-a1cf-a5eb1b29e7a4/messages?limit=50
+Authorization: Bearer <jwt-access-token>
+```
+
+For the next older page:
+
+```http
+GET /api/conversations/2d7f7fcb-9206-4d29-a1cf-a5eb1b29e7a4/messages?limit=50&before=<next_cursor>
+Authorization: Bearer <jwt-access-token>
+```
+
+Messages within a page are ordered oldest-to-newest. The page fetch is newest
+first internally, with the response reversed for display.
+
+Example success response (`200 OK`):
+
+```json
+{
+  "messages": [
+    {
+      "id": "e2eaccc7-ae03-4e89-bb7e-c9cf5c0e6f7e",
+      "conversation_id": "2d7f7fcb-9206-4d29-a1cf-a5eb1b29e7a4",
+      "sender_id": "99e79d8f-1ae4-43c8-b657-4f9be44d57c9",
+      "key_version": 1,
+      "ciphertext": "AQLs9sFz...",
+      "nonce": "AAAAAAAAAAAAAAAA",
+      "auth_tag": "AAAAAAAAAAAAAAAAAAAAAA==",
+      "created_at": "2026-11-22T20:17:10.123456Z"
+    }
+  ],
+  "next_cursor": "MjAyNi0xMS0yMlQyMDoxNzoxMC4xMjM0NTZa|e2eaccc7-ae03-4e89-bb7e-c9cf5c0e6f7e",
+  "has_more": true
+}
+```
+
+`next_cursor` is `null` when no older page is available. Soft-deleted messages
+are excluded from normal history.
+
+History errors:
+
+| Status | Code | Cause |
+|---:|---|---|
+| `400` | `INVALID_CONVERSATION_ID` | `id` is not a valid UUID. |
+| `404` | `CONVERSATION_NOT_FOUND` | Conversation is unknown or caller is not an active participant. |
+| `400` | `INVALID_MESSAGE_LIMIT` | `limit` is not an integer from `1` through `100`. |
+| `400` | `INVALID_MESSAGE_CURSOR` | `before` is malformed or not a valid cursor. |
+
+### Soft-delete a message
+
+Endpoint:
+
+```http
+DELETE /api/conversations/:id/messages/:message_id
+Authorization: Bearer <jwt-access-token>
+```
+
+Path parameters:
+
+| Parameter | Type | Required | Description |
+|---|---|---:|---|
+| `id` | UUID | Yes | ID of the direct conversation. |
+| `message_id` | UUID | Yes | ID of the message to delete. |
+
+Only the sender may soft-delete one of its direct messages. The server sets
+`deleted_at` and `deleted_by`; normal history reads exclude the message.
+
+Example success response (`200 OK`):
+
+```json
+{
+  "deleted": true,
+  "id": "e2eaccc7-ae03-4e89-bb7e-c9cf5c0e6f7e"
+}
+```
+
+Delete errors:
+
+| Status | Code | Cause |
+|---:|---|---|
+| `400` | `INVALID_CONVERSATION_ID` | `id` is not a valid UUID. |
+| `400` | `INVALID_MESSAGE_ID` | `message_id` is not a valid UUID. |
+| `404` | `CONVERSATION_NOT_FOUND` | Conversation is unknown or caller is not an active participant. |
+| `404` | `MESSAGE_NOT_FOUND` | Message is unknown in this conversation. |
+| `409` | `MESSAGE_ALREADY_DELETED` | Message was already soft-deleted. |
+| `403` | `MESSAGE_FORBIDDEN` | Caller sent a different message. |
+
+The following operations remain planned:
+
+- Retrieve direct-conversation participants
+- Group creation and group role/participant operations
 
 Every operation must verify authenticated conversation membership. The backend
 must store and relay ciphertext and encrypted key envelopes only; it must not

@@ -276,6 +276,15 @@ The sender must not send plaintext or the plaintext conversation key.
 If an envelope for a historical key version is missing, the client cannot
 decrypt that message.
 
+The REST implementation stores only the AES-GCM ciphertext, nonce,
+authentication tag, sender ID, and key version. Clients should use:
+
+- `POST /api/conversations/:id/messages` to persist a new encrypted message.
+- `GET /api/conversations/:id/messages?limit=50&before=<cursor>` to read older
+  history.
+- `DELETE /api/conversations/:id/messages/:message_id` to soft-delete only a
+  message sent by the authenticated account.
+
 ## 4. Group conversations
 
 A group conversation uses the same message encryption and envelope model as a
