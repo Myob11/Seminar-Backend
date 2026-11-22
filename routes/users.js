@@ -35,6 +35,56 @@ function profilePictureUrl(profilePicturePath) {
   return '/api/users/profile-pictures/' + encodeURIComponent(filename);
 }
 
+function decodeBase64Field(value, fieldName, minimumBytes, maximumBytes) {
+  if (
+    typeof value !== 'string' ||
+    value.length === 0 ||
+    value.length > 2 * 65536 ||
+    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)
+  ) {
+    throw new ApiError(400, 'INVALID_PRIVATE_KEY_BACKUP', fieldName + ' must be valid base64.');
+  }
+
+  var decoded = Buffer.from(value, 'base64');
+  if (
+    decoded.length < minimumBytes ||
+    decoded.length > maximumBytes ||
+    decoded.toString('base64') !== value
+  ) {
+    throw new ApiError(400, 'INVALID_PRIVATE_KEY_BACKUP', fieldName + ' has an invalid length.');
+  }
+
+  return decoded;
+}
+
+function backupResponse(user) {
+  var parameters = user.private_key_kdf_parameters;
+  if (typeof parameters === 'string') {
+    try {
+      parameters = JSON.parse(parameters);
+    } catch (error) {
+      parameters = null;
+    }
+  }
+
+  return {
+    encrypted_rsa_private_key: user.encrypted_rsa_private_key
+      ? user.encrypted_rsa_private_key.toString('base64')
+      : null,
+    private_key_kdf: user.private_key_kdf || null,
+    private_key_kdf_parameters: parameters,
+    private_key_backup_salt: user.private_key_backup_salt
+      ? Buffer.from(user.private_key_backup_salt).toString('base64')
+      : null,
+    private_key_backup_nonce: user.private_key_backup_nonce
+      ? Buffer.from(user.private_key_backup_nonce).toString('base64')
+      : null,
+    private_key_backup_auth_tag: user.private_key_backup_auth_tag
+      ? Buffer.from(user.private_key_backup_auth_tag).toString('base64')
+      : null
+  };
+}
+
 async function processProfileImage(file) {
   var metadata;
 
@@ -186,6 +236,127 @@ router.get('/me/public-key', authenticate, async function(req, res, next) {
     res.status(200).json({
       rsa_public_key: user.rsa_public_key
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+function validateKdfParameters(kdf, parameters) {
+  if (
+    !parameters ||
+    typeof parameters !== 'object' ||
+    Array.isArray(parameters)
+  ) {
+    throw new ApiError(400, 'INVALID_PRIVATE_KEY_BACKUP', 'private_key_kdf_parameters must be a JSON object.');
+  }
+
+  var serialized = JSON.stringify(parameters);
+  if (serialized.length > 4096) {
+    throw new ApiError(400, 'INVALID_PRIVATE_KEY_BACKUP', 'private_key_kdf_parameters is too large.');
+  }
+
+  var allowed = kdf === 'scrypt'
+    ? ['N', 'r', 'p']
+    : ['memory', 'iterations', 'parallelism'];
+  var keys = Object.keys(parameters);
+
+  if (
+    keys.length !== allowed.length ||
+    keys.some(function(key) { return !allowed.includes(key); })
+  ) {
+    throw new ApiError(400, 'INVALID_PRIVATE_KEY_BACKUP', 'private_key_kdf_parameters are invalid for the selected KDF.');
+  }
+
+  var integers = keys.every(function(key) {
+    return Number.isInteger(parameters[key]) && parameters[key] > 0;
+  });
+  if (!integers) {
+    throw new ApiError(400, 'INVALID_PRIVATE_KEY_BACKUP', 'private_key_kdf_parameters values must be positive integers.');
+  }
+
+  if (kdf === 'scrypt') {
+    var n = parameters.N;
+    if (
+      n < 4096 ||
+      n > 1048576 ||
+      (n & (n - 1)) !== 0 ||
+      parameters.r < 1 ||
+      parameters.r > 1024 ||
+      parameters.p < 1 ||
+      parameters.p > 16
+    ) {
+      throw new ApiError(400, 'INVALID_PRIVATE_KEY_BACKUP', 'scrypt parameters are outside the allowed range.');
+    }
+  } else {
+    if (
+      parameters.memory < 32768 ||
+      parameters.memory > 1048576 ||
+      parameters.iterations < 1 ||
+      parameters.iterations > 20 ||
+      parameters.parallelism < 1 ||
+      parameters.parallelism > 16
+    ) {
+      throw new ApiError(400, 'INVALID_PRIVATE_KEY_BACKUP', 'Argon2id parameters are outside the allowed range.');
+    }
+  }
+}
+
+router.put('/me/private-key-backup', authenticate, async function(req, res, next) {
+  try {
+    var body = req.body || {};
+    var kdf = body.private_key_kdf;
+
+    if (!['argon2id', 'scrypt'].includes(kdf)) {
+      throw new ApiError(400, 'INVALID_PRIVATE_KEY_BACKUP', 'private_key_kdf must be argon2id or scrypt.');
+    }
+
+    validateKdfParameters(kdf, body.private_key_kdf_parameters);
+
+    var encryptedPrivateKey = decodeBase64Field(
+      body.encrypted_rsa_private_key,
+      'encrypted_rsa_private_key',
+      1,
+      65536
+    );
+    var salt = decodeBase64Field(
+      body.private_key_backup_salt,
+      'private_key_backup_salt',
+      32,
+      32
+    );
+    var nonce = decodeBase64Field(
+      body.private_key_backup_nonce,
+      'private_key_backup_nonce',
+      12,
+      12
+    );
+    var authTag = decodeBase64Field(
+      body.private_key_backup_auth_tag,
+      'private_key_backup_auth_tag',
+      16,
+      16
+    );
+
+    await users.updatePrivateKeyBackup(req.user.id, {
+      encryptedPrivateKey: encryptedPrivateKey,
+      kdf: kdf,
+      kdfParameters: body.private_key_kdf_parameters,
+      salt: salt,
+      nonce: nonce,
+      authTag: authTag
+    });
+
+    var updated = await users.findById(req.user.id);
+    res.status(200).json(backupResponse(updated));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/me/private-key-backup', authenticate, async function(req, res, next) {
+  try {
+    var user = await users.findById(req.user.id);
+    res.status(200).json(backupResponse(user));
   } catch (error) {
     next(error);
   }

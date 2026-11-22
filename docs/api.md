@@ -310,6 +310,10 @@ view URL, not a server-side disk path. No profile picture is represented by
 
 ## RSA public keys
 
+The complete account, direct-conversation, group, key-envelope, backup,
+rotation, and message encryption protocol is documented in
+[End-to-End Encryption](/api/docs/encryption).
+
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
 | `GET` | `/api/users/me/public-key` | JWT | Read the authenticated user's RSA public key |
@@ -340,6 +344,71 @@ returns:
 `GET /api/users/me/public-key` and `GET /api/users/:id/public-key` return the
 same representation. If no key has been set, `rsa_public_key` is `null`.
 Invalid keys return `400 INVALID_RSA_PUBLIC_KEY`.
+
+## RSA private-key backups
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `PUT` | `/api/users/me/private-key-backup` | JWT | Store or replace the authenticated user's encrypted RSA private-key backup |
+| `GET` | `/api/users/me/private-key-backup` | JWT | Read the authenticated user's encrypted backup metadata |
+
+The recovery phrase and plaintext RSA private key never leave the client. The
+client derives a 32-byte AES-256 key from the recovery phrase using Argon2id or
+scrypt, then encrypts the PKCS#8 RSA private-key bytes with AES-256-GCM.
+
+`PUT /api/users/me/private-key-backup` accepts:
+
+```json
+{
+  "encrypted_rsa_private_key": "<base64 AES-GCM ciphertext>",
+  "private_key_kdf": "scrypt",
+  "private_key_kdf_parameters": {
+    "N": 16384,
+    "r": 8,
+    "p": 1
+  },
+  "private_key_backup_salt": "<base64 32-byte salt>",
+  "private_key_backup_nonce": "<base64 12-byte nonce>",
+  "private_key_backup_auth_tag": "<base64 16-byte authentication tag>"
+}
+```
+
+The accepted KDFs are `scrypt` and `argon2id`.
+
+- `scrypt` parameters: `N`, `r`, and `p`. `N` must be a power of two from
+  4096 through 1048576, `r` must be 1-1024, and `p` must be 1-16.
+- `argon2id` parameters: `memory`, `iterations`, and `parallelism`.
+  `memory` must be 32768-1048576 KiB, `iterations` must be 1-20, and
+  `parallelism` must be 1-16.
+- The backup ciphertext must be 1-65536 bytes.
+- The salt must be exactly 32 bytes.
+- The AES-GCM nonce must be exactly 12 bytes.
+- The AES-GCM authentication tag must be exactly 16 bytes.
+- All binary fields use base64 encoding.
+
+Successful storage returns `200` with the stored encrypted backup fields:
+
+```json
+{
+  "encrypted_rsa_private_key": "<base64 AES-GCM ciphertext>",
+  "private_key_kdf": "scrypt",
+  "private_key_kdf_parameters": {
+    "N": 16384,
+    "r": 8,
+    "p": 1
+  },
+  "private_key_backup_salt": "<base64 32-byte salt>",
+  "private_key_backup_nonce": "<base64 12-byte nonce>",
+  "private_key_backup_auth_tag": "<base64 16-byte authentication tag>"
+}
+```
+
+`GET /api/users/me/private-key-backup` returns the same shape. If no backup
+has been stored, all backup fields are `null`.
+
+Invalid values return `400 INVALID_PRIVATE_KEY_BACKUP`. The server stores
+ciphertext and derivation metadata but cannot recover or inspect the plaintext
+RSA private key.
 
 ## Friendships
 

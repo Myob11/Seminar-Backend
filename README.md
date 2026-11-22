@@ -144,3 +144,5 @@ contract and should be updated alongside endpoint changes. The initial database
 plan is in [`docs/mysql-layout.md`](docs/mysql-layout.md). The project handoff
 and decision history is in
 [`docs/project-context.md`](docs/project-context.md).
+The client cryptographic protocol is documented in
+[`docs/encryption.md`](docs/encryption.md).

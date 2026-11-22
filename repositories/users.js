@@ -11,11 +11,40 @@ async function findByUsername(username) {
 
 async function findById(id) {
   var rows = await db.execute(
-    'SELECT BIN_TO_UUID(id) AS id, username, profile_picture_path, rsa_public_key FROM users WHERE id = UUID_TO_BIN(?) LIMIT 1',
+    `SELECT BIN_TO_UUID(id) AS id, username, profile_picture_path, rsa_public_key,
+            encrypted_rsa_private_key, private_key_kdf,
+            private_key_kdf_parameters, private_key_backup_salt,
+            private_key_backup_nonce, private_key_backup_auth_tag
+     FROM users
+     WHERE id = UUID_TO_BIN(?) LIMIT 1`,
     [id]
   );
 
   return rows[0][0] || null;
+}
+
+async function updatePrivateKeyBackup(id, backup) {
+  var result = await db.execute(
+    `UPDATE users SET
+       encrypted_rsa_private_key = ?,
+       private_key_kdf = ?,
+       private_key_kdf_parameters = ?,
+       private_key_backup_salt = ?,
+       private_key_backup_nonce = ?,
+       private_key_backup_auth_tag = ?
+     WHERE id = UUID_TO_BIN(?)`,
+    [
+      backup.encryptedPrivateKey,
+      backup.kdf,
+      JSON.stringify(backup.kdfParameters),
+      backup.salt,
+      backup.nonce,
+      backup.authTag,
+      id
+    ]
+  );
+
+  return result[0].affectedRows === 1;
 }
 
 async function updateRsaPublicKey(id, rsaPublicKey) {
@@ -83,5 +112,6 @@ module.exports = {
   updateProfilePicture: updateProfilePicture,
   findByProfilePicturePath: findByProfilePicturePath,
   updateRsaPublicKey: updateRsaPublicKey,
+  updatePrivateKeyBackup: updatePrivateKeyBackup,
   create: create
 };

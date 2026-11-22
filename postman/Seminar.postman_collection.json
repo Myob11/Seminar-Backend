@@ -33,6 +33,26 @@
             "description": "Open the rendered Seminar API documentation website."
           },
           "response": []
+        },
+        {
+            "name": "Get encryption documentation",
+            "request": {
+              "method": "GET",
+              "header": [],
+              "url": {
+                "raw": "{{baseUrl}}/api/docs/encryption",
+                "host": [
+                  "{{baseUrl}}"
+                ],
+                "path": [
+                  "api",
+                  "docs",
+                  "encryption"
+                ]
+              },
+              "description": "Open the rendered end-to-end encryption protocol documentation."
+            },
+            "response": []
         }
       ]
     },
@@ -423,6 +443,77 @@
               ]
             },
             "description": "Read the authenticated user's RSA public key."
+          },
+          "response": []
+        },
+        {
+          "name": "Set my private-key backup",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"encrypted_rsa_private_key\": \"{{privateKeyCiphertext}}\",\n  \"private_key_kdf\": \"scrypt\",\n  \"private_key_kdf_parameters\": {\n    \"N\": 16384,\n    \"r\": 8,\n    \"p\": 1\n  },\n  \"private_key_backup_salt\": \"{{privateKeySalt}}\",\n  \"private_key_backup_nonce\": \"{{privateKeyNonce}}\",\n  \"private_key_backup_auth_tag\": \"{{privateKeyAuthTag}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me/private-key-backup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me",
+                "private-key-backup"
+              ]
+            },
+            "description": "Store or replace the authenticated user's encrypted RSA private-key backup."
+          },
+          "response": []
+        },
+        {
+          "name": "Get my private-key backup",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me/private-key-backup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me",
+                "private-key-backup"
+              ]
+            },
+            "description": "Read the authenticated user's encrypted private-key backup."
           },
           "response": []
         },
