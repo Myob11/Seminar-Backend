@@ -144,6 +144,53 @@ router.delete('/me/profile-picture', authenticate, async function(req, res, next
   }
 });
 
+router.put('/me/public-key', authenticate, async function(req, res, next) {
+  try {
+    var value = req.body && req.body.rsa_public_key;
+    if (typeof value !== 'string' || value.length > 16384) {
+      throw new ApiError(400, 'INVALID_RSA_PUBLIC_KEY', 'A valid RSA public key is required.');
+    }
+
+    var publicKey;
+    try {
+      publicKey = crypto.createPublicKey(value);
+    } catch (error) {
+      throw new ApiError(400, 'INVALID_RSA_PUBLIC_KEY', 'A valid RSA public key is required.');
+    }
+
+    var details = publicKey.asymmetricKeyDetails;
+    if (
+      publicKey.asymmetricKeyType !== 'rsa' ||
+      !details ||
+      typeof details.modulusLength !== 'number' ||
+      details.modulusLength < 2048
+    ) {
+      throw new ApiError(400, 'INVALID_RSA_PUBLIC_KEY', 'RSA public keys must contain at least 2048 bits.');
+    }
+
+    var canonicalKey = publicKey.export({ type: 'spki', format: 'pem' }).toString();
+    await users.updateRsaPublicKey(req.user.id, canonicalKey);
+
+    res.status(200).json({
+      rsa_public_key: canonicalKey
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/me/public-key', authenticate, async function(req, res, next) {
+  try {
+    var user = await users.findById(req.user.id);
+
+    res.status(200).json({
+      rsa_public_key: user.rsa_public_key
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/profile-pictures/:filename', async function(req, res, next) {
   try {
     if (!/^[0-9a-f-]{36}\.png$/i.test(req.params.filename)) {
@@ -159,6 +206,28 @@ router.get('/profile-pictures/:filename', async function(req, res, next) {
 
     res.set('Cache-Control', 'public, max-age=86400');
     res.sendFile(path.resolve(__dirname, '..', relativePath));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/:id/public-key', authenticate, async function(req, res, next) {
+  try {
+    var id = req.params.id;
+
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+      throw new ApiError(400, 'INVALID_USER_ID', 'User ID must be a valid UUID.');
+    }
+
+    var user = await users.findById(id);
+
+    if (!user) {
+      throw new ApiError(404, 'USER_NOT_FOUND', 'User was not found.');
+    }
+
+    res.status(200).json({
+      rsa_public_key: user.rsa_public_key
+    });
   } catch (error) {
     next(error);
   }

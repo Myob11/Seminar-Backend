@@ -25,6 +25,10 @@
   ```
 
 - Pagination limits and the final error-code list still need to be approved.
+- Every implemented endpoint must be documented here, because this file is
+  rendered on the hosted documentation website at `GET /api/docs`. Documentation
+  updates must include authentication, request and response shapes, and
+  relevant error responses.
 
 ## Health
 
@@ -189,6 +193,9 @@ with `401 INVALID_TOKEN`.
 |---|---|---|---|
 | `GET` | `/api/users/search?q=...` | JWT | Search public user identifiers |
 | `GET` | `/api/users/:id` | JWT | View a user profile |
+| `GET` | `/api/users/me/public-key` | JWT | Read the authenticated user's RSA public key |
+| `PUT` | `/api/users/me/public-key` | JWT | Set the authenticated user's RSA public key |
+| `GET` | `/api/users/:id/public-key` | JWT | Read another user's RSA public key |
 | `POST` | `/api/users/me/profile-picture` | JWT | Upload a profile picture |
 | `DELETE` | `/api/users/me/profile-picture` | JWT | Remove the profile picture |
 
@@ -300,6 +307,39 @@ The accepted profile-picture policy is now:
 The profile representation consistently exposes `profile_picture` as a public
 view URL, not a server-side disk path. No profile picture is represented by
 `null`.
+
+## RSA public keys
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `GET` | `/api/users/me/public-key` | JWT | Read the authenticated user's RSA public key |
+| `PUT` | `/api/users/me/public-key` | JWT | Set the authenticated user's RSA public key |
+| `GET` | `/api/users/:id/public-key` | JWT | Read another user's RSA public key |
+
+The public key body format is a PEM-encoded RSA SubjectPublicKeyInfo key:
+
+```json
+{
+  "rsa_public_key": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
+}
+```
+
+The server accepts only RSA public keys with a modulus of at least 2048 bits.
+It canonicalizes a valid key as PEM-encoded SubjectPublicKeyInfo before
+storage. The endpoint does not accept private-key PEM data or non-RSA keys.
+
+`PUT /api/users/me/public-key` replaces the current account public key and
+returns:
+
+```json
+{
+  "rsa_public_key": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
+}
+```
+
+`GET /api/users/me/public-key` and `GET /api/users/:id/public-key` return the
+same representation. If no key has been set, `rsa_public_key` is `null`.
+Invalid keys return `400 INVALID_RSA_PUBLIC_KEY`.
 
 ## Friendships
 

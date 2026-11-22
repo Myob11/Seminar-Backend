@@ -345,6 +345,119 @@
           "response": []
         },
         {
+          "name": "Set my RSA public key",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set('rsaPublicKeyJson', JSON.stringify(pm.environment.get('rsaPublicKey')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rsa_public_key\": {{rsaPublicKeyJson}}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me/public-key",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me",
+                "public-key"
+              ]
+            },
+            "description": "Set the authenticated user's RSA public key."
+          },
+          "response": []
+        },
+        {
+          "name": "Get my RSA public key",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me/public-key",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me",
+                "public-key"
+              ]
+            },
+            "description": "Read the authenticated user's RSA public key."
+          },
+          "response": []
+        },
+        {
+          "name": "Get a user's RSA public key",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{profileUserId}}/public-key",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "{{profileUserId}}",
+                "public-key"
+              ]
+            },
+            "description": "Read another user's RSA public key."
+          },
+          "response": []
+        },
+        {
           "name": "Upload profile picture",
           "event": [
             {

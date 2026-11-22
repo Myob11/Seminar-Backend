@@ -11,11 +11,20 @@ async function findByUsername(username) {
 
 async function findById(id) {
   var rows = await db.execute(
-    'SELECT BIN_TO_UUID(id) AS id, username, profile_picture_path FROM users WHERE id = UUID_TO_BIN(?) LIMIT 1',
+    'SELECT BIN_TO_UUID(id) AS id, username, profile_picture_path, rsa_public_key FROM users WHERE id = UUID_TO_BIN(?) LIMIT 1',
     [id]
   );
 
   return rows[0][0] || null;
+}
+
+async function updateRsaPublicKey(id, rsaPublicKey) {
+  var result = await db.execute(
+    'UPDATE users SET rsa_public_key = ? WHERE id = UUID_TO_BIN(?)',
+    [rsaPublicKey, id]
+  );
+
+  return result[0].affectedRows === 1;
 }
 
 async function search(query, excludeId, limit) {
@@ -73,5 +82,6 @@ module.exports = {
   search: search,
   updateProfilePicture: updateProfilePicture,
   findByProfilePicturePath: findByProfilePicturePath,
+  updateRsaPublicKey: updateRsaPublicKey,
   create: create
 };
