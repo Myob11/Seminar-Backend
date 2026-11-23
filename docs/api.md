@@ -532,6 +532,7 @@ RSA private key.
 | `POST` | `/api/conversations/direct` | JWT | Create or return the canonical direct conversation with a friend |
 | `GET` | `/api/conversations/direct` | JWT | List the authenticated user's direct conversations |
 | `GET` | `/api/conversations/:id` | JWT | Read a direct conversation to which the user belongs |
+| `PUT` | `/api/conversations/:id/read-state` | JWT | Advance the caller's per-conversation read cursor |
 
 Creation accepts the other user's UUID:
 
@@ -573,6 +574,39 @@ For `GET /api/conversations/:id`, the path parameter is:
 
 The current direct-conversation response has no recipient or participant data;
 use `GET /api/conversations/direct` to retrieve the recipient profile summary.
+
+`GET /api/conversations/direct` includes a lightweight preview and unread count
+for the authenticated caller:
+
+```json
+[
+  {
+    "id": "2d7f7fcb-9206-4d29-a1cf-a5eb1b29e7a4",
+    "type": "direct",
+    "current_key_version": 1,
+    "recipient": {
+      "id": "99e79d8f-1ae4-43c8-b657-4f9be44d57c9",
+      "username": "alice",
+      "profile_picture": null
+    },
+    "unread_count": 2,
+    "last_message": {
+      "id": "e2eaccc7-ae03-4e89-bb7e-cf0a9bb1df10",
+      "sender_id": "99e79d8f-1ae4-43c8-b657-4f9be44d57c9",
+      "key_version": 1,
+      "ciphertext": "<base64>",
+      "nonce": "<base64>",
+      "auth_tag": "<base64>",
+      "created_at": "2026-11-22T20:17:10.123456Z"
+    }
+  }
+]
+```
+
+`last_message` is `null` for a conversation without visible messages.
+`unread_count` counts non-deleted messages sent by the other participant after
+the caller's read cursor. Full encrypted history is not included in this
+endpoint.
 
 Creating the direct chat creates conversation metadata only. The conversation
 creator and active participants still generate and submit RSA-OAEP wrapped
@@ -784,6 +818,7 @@ implementation.
 | `POST` | `/api/conversations/:id/messages` | JWT | Store an encrypted direct message |
 | `GET` | `/api/conversations/:id/messages` | JWT | Retrieve paginated encrypted history |
 | `DELETE` | `/api/conversations/:id/messages/:message_id` | JWT | Soft-delete a message sent by the authenticated user |
+| `PUT` | `/api/conversations/:id/read-state` | JWT | Advance the caller's read cursor |
 
 Every operation verifies active conversation membership. The backend stores and
 returns only ciphertext, nonce, authentication tag, sender ID, and key version.
@@ -922,6 +957,49 @@ History errors:
 | `404` | `CONVERSATION_NOT_FOUND` | Conversation is unknown or caller is not an active participant. |
 | `400` | `INVALID_MESSAGE_LIMIT` | `limit` is not an integer from `1` through `100`. |
 | `400` | `INVALID_MESSAGE_CURSOR` | `before` is malformed or not a valid cursor. |
+
+### Advance the read cursor
+
+Endpoint:
+
+```http
+PUT /api/conversations/:id/read-state
+Authorization: Bearer <jwt-access-token>
+Content-Type: application/json
+```
+
+Request body:
+
+```json
+{
+  "through_message_id": "e2eaccc7-ae03-4e89-bb7e-cf0a9bb1df10"
+}
+```
+
+Call this endpoint after opened-chat messages have loaded and appeared on screen.
+The server validates that the message belongs to the conversation and advances
+the caller's cursor only forward by message creation time and message ID. It
+does not accept a client-provided timestamp. Cursor and read time are stored per
+user and per conversation.
+
+Example success response (`200 OK`):
+
+```json
+{
+  "conversation_id": "2d7f7fcb-9206-4d29-a1cf-a5eb1b29e7a4",
+  "through_message_id": "e2eaccc7-ae03-4e89-bb7e-cf0a9bb1df10",
+  "read_at": "2026-11-23T18:24:31.621000Z"
+}
+```
+
+Read-state errors:
+
+| Status | Code | Cause |
+|---:|---|---|
+| `400` | `INVALID_CONVERSATION_ID` | `id` is not a valid UUID. |
+| `404` | `CONVERSATION_NOT_FOUND` | Conversation is unknown or caller is not an active participant. |
+| `400` | `INVALID_MESSAGE_ID` | `through_message_id` is missing or not a valid UUID. |
+| `404` | `MESSAGE_NOT_FOUND` | Message is unknown or deleted and does not belong to the conversation. |
 
 ### Soft-delete a message
 

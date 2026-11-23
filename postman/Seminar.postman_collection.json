@@ -732,6 +732,46 @@
           "response": []
         },
         {
+          "name": "Advance conversation read state",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"through_message_id\": \"{{messageId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/conversations/{{conversationId}}/read-state",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "conversations",
+                "{{conversationId}}",
+                "read-state"
+              ]
+            },
+            "description": "Advance the authenticated user's per-conversation read cursor."
+          },
+          "response": []
+        },
+        {
             "name": "Store key envelope",
             "event": [
               {

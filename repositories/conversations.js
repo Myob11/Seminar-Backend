@@ -86,7 +86,31 @@ async function listDirectForUser(userId) {
             c.updated_at,
             BIN_TO_UUID(other_user.id) AS recipient_id,
             other_user.username AS recipient_username,
-            other_user.profile_picture_path AS recipient_profile_picture_path
+            other_user.profile_picture_path AS recipient_profile_picture_path,
+            BIN_TO_UUID(latest.id) AS last_message_id,
+            BIN_TO_UUID(latest.sender_id) AS last_message_sender_id,
+            latest.key_version AS last_message_key_version,
+            latest.ciphertext AS last_message_ciphertext,
+            latest.nonce AS last_message_nonce,
+            latest.auth_tag AS last_message_auth_tag,
+            latest.created_at AS last_message_created_at,
+            (
+              SELECT COUNT(*)
+              FROM messages unread
+              LEFT JOIN conversation_read_states rs
+                ON rs.conversation_id = c.id
+               AND rs.user_id = UUID_TO_BIN(?)
+              LEFT JOIN messages read_through
+                ON read_through.id = rs.through_message_id
+              WHERE unread.conversation_id = c.id
+                AND unread.deleted_at IS NULL
+                AND unread.sender_id <> UUID_TO_BIN(?)
+                AND (
+                  rs.through_message_id IS NULL
+                  OR unread.created_at > read_through.created_at
+                  OR (unread.created_at = read_through.created_at AND unread.id > read_through.id)
+                )
+            ) AS unread_count
      FROM conversations c
      JOIN conversation_participants mine
        ON mine.conversation_id = c.id
@@ -97,10 +121,19 @@ async function listDirectForUser(userId) {
       AND other.user_id <> UUID_TO_BIN(?)
       AND other.left_at IS NULL
      JOIN users other_user ON other_user.id = other.user_id
+     LEFT JOIN messages latest
+       ON latest.id = (
+         SELECT candidate.id
+         FROM messages candidate
+         WHERE candidate.conversation_id = c.id
+           AND candidate.deleted_at IS NULL
+         ORDER BY candidate.created_at DESC, candidate.id DESC
+         LIMIT 1
+       )
      WHERE c.type = 'direct'
        AND c.deleted_at IS NULL
-     ORDER BY c.updated_at DESC`,
-    [userId, userId]
+     ORDER BY COALESCE(latest.created_at, c.updated_at) DESC`,
+    [userId, userId, userId, userId]
   );
 
   return rows[0];

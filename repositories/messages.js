@@ -77,7 +77,24 @@ async function list(conversationId, limit, cursor) {
             ciphertext,
             nonce,
             auth_tag,
-            created_at
+            created_at,
+            (
+              SELECT rs.read_at
+              FROM conversation_read_states rs
+              JOIN messages read_through
+                ON read_through.id = rs.through_message_id
+              WHERE rs.conversation_id = messages.conversation_id
+                AND rs.user_id <> messages.sender_id
+                AND (
+                  read_through.created_at > messages.created_at
+                  OR (
+                    read_through.created_at = messages.created_at
+                    AND read_through.id >= messages.id
+                  )
+                )
+              ORDER BY rs.read_at DESC
+              LIMIT 1
+            ) AS read_at
      FROM messages
      WHERE conversation_id = UUID_TO_BIN(?)
        AND deleted_at IS NULL
@@ -123,6 +140,69 @@ async function find(conversationId, messageId) {
   return rows[0][0] || null;
 }
 
+async function advanceReadState(conversationId, userId, messageId) {
+  var messageRows = await db.execute(
+    `SELECT created_at
+     FROM messages
+     WHERE conversation_id = UUID_TO_BIN(?)
+       AND id = UUID_TO_BIN(?)
+       AND deleted_at IS NULL
+     LIMIT 1`,
+    [conversationId, messageId]
+  );
+  var message = messageRows[0][0];
+  if (!message) {
+    return null;
+  }
+
+  var stateRows = await db.execute(
+    `SELECT BIN_TO_UUID(rs.through_message_id) AS through_message_id,
+            read_through.created_at AS through_created_at,
+            BIN_TO_UUID(read_through.id) AS through_id,
+            rs.read_at
+     FROM conversation_read_states rs
+     JOIN messages read_through ON read_through.id = rs.through_message_id
+     WHERE rs.conversation_id = UUID_TO_BIN(?)
+       AND rs.user_id = UUID_TO_BIN(?)
+     LIMIT 1`,
+    [conversationId, userId]
+  );
+  var state = stateRows[0][0];
+
+  if (state) {
+    var targetTime = new Date(message.created_at).getTime();
+    var currentTime = new Date(state.through_created_at).getTime();
+    if (
+      targetTime < currentTime ||
+      (targetTime === currentTime && messageId.toLowerCase() <= state.through_id.toLowerCase())
+    ) {
+      return { through_message_id: state.through_id, read_at: state.read_at, unchanged: true };
+    }
+  }
+
+  await db.execute(
+    `INSERT INTO conversation_read_states
+       (conversation_id, user_id, through_message_id)
+     VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN(?))
+     ON DUPLICATE KEY UPDATE
+       through_message_id = VALUES(through_message_id),
+       read_at = CURRENT_TIMESTAMP(6),
+       updated_at = CURRENT_TIMESTAMP(6)`,
+    [conversationId, userId, messageId]
+  );
+
+  var updated = await db.execute(
+    `SELECT BIN_TO_UUID(through_message_id) AS through_message_id,
+            read_at
+     FROM conversation_read_states
+     WHERE conversation_id = UUID_TO_BIN(?)
+       AND user_id = UUID_TO_BIN(?)
+     LIMIT 1`,
+    [conversationId, userId]
+  );
+  return updated[0][0];
+}
+
 async function softDelete(conversationId, messageId, deletedBy) {
   var result = await db.execute(
     `UPDATE messages
@@ -141,5 +221,6 @@ module.exports = {
   create: create,
   list: list,
   find: find,
+  advanceReadState: advanceReadState,
   softDelete: softDelete
 };

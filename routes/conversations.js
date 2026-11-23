@@ -41,6 +41,24 @@ function conversationResponse(conversation, recipient) {
     };
   }
 
+  if (Object.prototype.hasOwnProperty.call(conversation, 'unread_count')) {
+    response.unread_count = Number(conversation.unread_count);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(conversation, 'last_message_id')) {
+    response.last_message = conversation.last_message_id
+      ? {
+          id: conversation.last_message_id,
+          sender_id: conversation.last_message_sender_id,
+          key_version: conversation.last_message_key_version,
+          ciphertext: Buffer.from(conversation.last_message_ciphertext).toString('base64'),
+          nonce: Buffer.from(conversation.last_message_nonce).toString('base64'),
+          auth_tag: Buffer.from(conversation.last_message_auth_tag).toString('base64'),
+          created_at: conversation.last_message_created_at
+        }
+      : null;
+  }
+
   return response;
 }
 
@@ -98,7 +116,7 @@ function decodeMessageField(value, fieldName, minimumBytes, maximumBytes) {
 }
 
 function messageResponse(message) {
-  return {
+  var response = {
     id: message.id,
     conversation_id: message.conversation_id,
     sender_id: message.sender_id,
@@ -108,6 +126,12 @@ function messageResponse(message) {
     auth_tag: Buffer.from(message.auth_tag).toString('base64'),
     created_at: message.created_at
   };
+
+  if (Object.prototype.hasOwnProperty.call(message, 'read_at')) {
+    response.read_at = message.read_at;
+  }
+
+  return response;
 }
 
 router.post('/direct', authenticate, async function(req, res, next) {
@@ -209,6 +233,37 @@ router.get('/:id/key-envelopes/me', authenticate, async function(req, res, next)
     }
 
     res.status(200).json(envelopeResponse(envelope));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/:id/read-state', authenticate, async function(req, res, next) {
+  try {
+    if (!uuidPattern.test(req.params.id)) {
+      throw new ApiError(400, 'INVALID_CONVERSATION_ID', 'Conversation ID must be a valid UUID.');
+    }
+
+    var conversation = await conversations.findDirectForUser(req.params.id, req.user.id);
+    if (!conversation) {
+      throw new ApiError(404, 'CONVERSATION_NOT_FOUND', 'Conversation was not found or you are not an active participant.');
+    }
+
+    var messageId = req.body && req.body.through_message_id;
+    if (!uuidPattern.test(messageId)) {
+      throw new ApiError(400, 'INVALID_MESSAGE_ID', 'through_message_id must be a valid UUID.');
+    }
+
+    var state = await messages.advanceReadState(req.params.id, req.user.id, messageId);
+    if (!state) {
+      throw new ApiError(404, 'MESSAGE_NOT_FOUND', 'Message was not found in this conversation.');
+    }
+
+    res.status(200).json({
+      conversation_id: req.params.id,
+      through_message_id: state.through_message_id,
+      read_at: state.read_at
+    });
   } catch (error) {
     next(error);
   }

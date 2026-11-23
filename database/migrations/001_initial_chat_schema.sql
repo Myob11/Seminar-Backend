@@ -113,6 +113,23 @@ CREATE TABLE IF NOT EXISTS messages (
     FOREIGN KEY (deleted_by) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS conversation_read_states (
+  conversation_id BINARY(16) NOT NULL,
+  user_id BINARY(16) NOT NULL,
+  through_message_id BINARY(16) NOT NULL,
+  read_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+    ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (conversation_id, user_id),
+  KEY idx_read_states_through_message (conversation_id, through_message_id),
+  CONSTRAINT fk_read_states_conversation
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+  CONSTRAINT fk_read_states_user
+    FOREIGN KEY (user_id) REFERENCES users(id),
+  CONSTRAINT fk_read_states_message
+    FOREIGN KEY (through_message_id) REFERENCES messages(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS revoked_access_tokens (
   jti VARCHAR(36) NOT NULL,
   user_id BINARY(16) NOT NULL,
