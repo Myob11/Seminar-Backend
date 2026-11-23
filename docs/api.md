@@ -658,10 +658,12 @@ Errors:
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
 | `GET` | `/api/friends` | JWT | List accepted friends |
-| `GET` | `/api/friends/requests` | JWT | List pending requests |
+| `GET` | `/api/friends/requests/incoming` | JWT | List pending incoming requests |
+| `GET` | `/api/friends/requests/outgoing` | JWT | List pending outgoing requests |
 | `POST` | `/api/friends/requests` | JWT | Send a friend request |
 | `POST` | `/api/friends/requests/:id/accept` | JWT | Accept a request |
 | `POST` | `/api/friends/requests/:id/decline` | JWT | Decline a request |
+| `DELETE` | `/api/friends/requests/:id` | JWT | Cancel an outgoing pending request |
 | `DELETE` | `/api/friends/:id` | JWT | Remove an accepted friendship |
 
 The request body for `POST /api/friends/requests` identifies the recipient
@@ -687,6 +689,7 @@ Endpoint-specific path parameters:
 |---|---|
 | `POST /api/friends/requests/:id/accept` | Friendship request ID |
 | `POST /api/friends/requests/:id/decline` | Friendship request ID |
+| `DELETE /api/friends/requests/:id` | Outgoing friendship request ID |
 | `DELETE /api/friends/:id` | Accepted friend's user ID |
 
 Example pending request response (`201 Created`):
@@ -704,19 +707,52 @@ Accepted-friend responses expose public profile fields. Pending incoming
 responses expose the friendship ID, requester public profile, status, and
 creation timestamp.
 
+`GET /api/friends/requests/incoming` returns pending requests that were sent to
+the authenticated user.
+
+`GET /api/friends/requests/outgoing` returns pending requests sent by the
+authenticated user:
+
+```json
+[
+  {
+    "id": "fd1e0637-c5b3-4d9e-b5de-d7c204fbecf3",
+    "recipient": {
+      "id": "b3ac5124-a8dd-4edc-9363-4029d9bb9cc7",
+      "username": "bob",
+      "profile_picture": null
+    },
+    "status": "pending",
+    "created_at": "2026-11-23T00:07:59.000Z"
+  }
+]
+```
+
+`DELETE /api/friends/requests/:id` cancels an outgoing pending request. Only
+the requester may cancel it, and it must still be pending. Cancellation changes
+the stored status to `declined`, so the request disappears from incoming and
+outgoing pending lists. A successful response is:
+
+```json
+{
+  "canceled": true,
+  "id": "fd1e0637-c5b3-4d9e-b5de-d7c204fbecf3"
+}
+```
+
 Common friendship errors:
 
 | Status | Code | Cause |
 |---:|---|---|
 | `400` | `INVALID_USER_ID` | A recipient or friend UUID is invalid. |
-| `400` | `INVALID_FRIENDSHIP_ID` | An accept/decline friendship request ID is invalid. |
+| `400` | `INVALID_FRIENDSHIP_ID` | A friendship request ID is invalid. |
 | `404` | `USER_NOT_FOUND` | Recipient user does not exist. |
 | `404` | `FRIENDSHIP_NOT_FOUND` | Request or accepted friendship does not exist. |
 | `400` | `SELF_FRIENDSHIP` | Request is sent to the authenticated user. |
-| `403` | `FRIENDSHIP_FORBIDDEN` | Accept/decline is attempted by a non-recipient. |
+| `403` | `FRIENDSHIP_FORBIDDEN` | Accept/decline/cancel is attempted by the wrong user. |
 | `409` | `FRIENDSHIP_EXISTS` | A pending or accepted relationship already exists. |
 | `409` | `FRIENDSHIP_BLOCKED` | A blocked relationship exists. |
-| `409` | `FRIENDSHIP_NOT_PENDING` | Accept/decline is used after the request changed state. |
+| `409` | `FRIENDSHIP_NOT_PENDING` | Accept/decline/cancel is used after the request changed state. |
 
 The initial status is `pending`. Accepting changes it to `accepted`; declining
 changes it to `declined`. An accepted friendship is bidirectional for reads and

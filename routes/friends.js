@@ -40,16 +40,40 @@ router.get('/', authenticate, async function(req, res, next) {
   }
 });
 
-router.get('/requests', authenticate, async function(req, res, next) {
+function incomingRequestsResponse(request) {
+  return {
+    id: request.id,
+    requester: {
+      id: request.requester_id,
+      username: request.requester_username,
+      profile_picture: profilePictureUrl(request.requester_profile_picture_path)
+    },
+    status: 'pending',
+    created_at: request.created_at
+  };
+}
+
+async function listIncomingRequests(req, res, next) {
   try {
     var pending = await friends.listPendingIncoming(req.user.id);
+    res.status(200).json(pending.map(incomingRequestsResponse));
+  } catch (error) {
+    next(error);
+  }
+}
+
+router.get('/requests/incoming', authenticate, listIncomingRequests);
+
+router.get('/requests/outgoing', authenticate, async function(req, res, next) {
+  try {
+    var pending = await friends.listPendingOutgoing(req.user.id);
     res.status(200).json(pending.map(function(request) {
       return {
         id: request.id,
-        requester: {
-          id: request.requester_id,
-          username: request.requester_username,
-          profile_picture: profilePictureUrl(request.requester_profile_picture_path)
+        recipient: {
+          id: request.recipient_id,
+          username: request.recipient_username,
+          profile_picture: profilePictureUrl(request.recipient_profile_picture_path)
         },
         status: 'pending',
         created_at: request.created_at
@@ -145,6 +169,30 @@ router.post('/requests/:id/decline', authenticate, async function(req, res, next
     }
 
     res.status(200).json(await friends.updateStatus(request.id, 'declined'));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/requests/:id', authenticate, async function(req, res, next) {
+  try {
+    validateUuid(req.params.id, 'INVALID_FRIENDSHIP_ID', 'Friendship request ID must be a valid UUID.');
+
+    var request = await friends.findById(req.params.id);
+    if (!request) {
+      throw new ApiError(404, 'FRIENDSHIP_NOT_FOUND', 'Friend request was not found.');
+    }
+
+    if (request.requester_id !== req.user.id) {
+      throw new ApiError(403, 'FRIENDSHIP_FORBIDDEN', 'Only the requester can cancel this friend request.');
+    }
+
+    if (request.status !== 'pending') {
+      throw new ApiError(409, 'FRIENDSHIP_NOT_PENDING', 'This friend request is not pending.');
+    }
+
+    await friends.updateStatus(request.id, 'declined');
+    res.status(200).json({ canceled: true, id: request.id });
   } catch (error) {
     next(error);
   }

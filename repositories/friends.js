@@ -104,6 +104,24 @@ async function listPendingIncoming(userId) {
   return rows[0];
 }
 
+async function listPendingOutgoing(userId) {
+  var rows = await db.execute(
+    `SELECT BIN_TO_UUID(f.id) AS id,
+            BIN_TO_UUID(f.addressee_id) AS recipient_id,
+            u.username AS recipient_username,
+            u.profile_picture_path AS recipient_profile_picture_path,
+            f.created_at
+     FROM friendships f
+     JOIN users u ON u.id = f.addressee_id
+     WHERE f.requester_id = UUID_TO_BIN(?)
+       AND f.status = 'pending'
+     ORDER BY f.created_at DESC`,
+    [userId]
+  );
+
+  return rows[0];
+}
+
 async function removeAccepted(userId, friendId) {
   var result = await db.execute(
     `DELETE FROM friendships
@@ -126,5 +144,6 @@ module.exports = {
   resend: resend,
   listAccepted: listAccepted,
   listPendingIncoming: listPendingIncoming,
+  listPendingOutgoing: listPendingOutgoing,
   removeAccepted: removeAccepted
 };
