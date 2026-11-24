@@ -160,10 +160,28 @@ async function findDirectForUser(conversationId, userId) {
   return rows[0][0] || null;
 }
 
+async function findDirectRecipient(conversationId, senderId) {
+  var rows = await db.execute(
+    `SELECT BIN_TO_UUID(p.user_id) AS recipient_id
+     FROM conversation_participants p
+     JOIN conversations c
+       ON c.id = p.conversation_id
+      AND c.type = 'direct'
+      AND c.deleted_at IS NULL
+     WHERE p.conversation_id = UUID_TO_BIN(?)
+       AND p.user_id <> UUID_TO_BIN(?)
+       AND p.left_at IS NULL
+     LIMIT 1`,
+    [conversationId, senderId]
+  );
+  return rows[0][0] ? rows[0][0].recipient_id : null;
+}
+
 module.exports = {
   canonicalDirectKey: canonicalDirectKey,
   findDirectByKey: findDirectByKey,
   createDirect: createDirect,
   listDirectForUser: listDirectForUser,
-  findDirectForUser: findDirectForUser
+  findDirectForUser: findDirectForUser,
+  findDirectRecipient: findDirectRecipient
 };

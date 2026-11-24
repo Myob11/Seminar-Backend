@@ -4,6 +4,7 @@ var authenticate = require('../middleware/authenticate');
 var friends = require('../repositories/friends');
 var users = require('../repositories/users');
 var ApiError = require('../errors');
+var websockets = require('../services/websockets');
 
 var router = express.Router();
 var uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -122,6 +123,12 @@ router.post('/requests', authenticate, async function(req, res, next) {
       created = await friends.create(req.user.id, recipientId);
     }
 
+    websockets.sendToUser(created.addressee_id, {
+      type: 'friend_request_received',
+      requestId: created.id,
+      fromUserId: created.requester_id
+    });
+
     res.status(201).json(created);
   } catch (error) {
     next(error);
@@ -145,7 +152,13 @@ router.post('/requests/:id/accept', authenticate, async function(req, res, next)
       throw new ApiError(409, 'FRIENDSHIP_NOT_PENDING', 'This friend request is not pending.');
     }
 
-    res.status(200).json(await friends.updateStatus(request.id, 'accepted'));
+    var accepted = await friends.updateStatus(request.id, 'accepted');
+    websockets.sendToUser(request.requester_id, {
+      type: 'friend_request_accepted',
+      requestId: accepted.id,
+      byUserId: accepted.addressee_id
+    });
+    res.status(200).json(accepted);
   } catch (error) {
     next(error);
   }

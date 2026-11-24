@@ -31,9 +31,18 @@ app.use('/api/friends', friendsRouter);
 app.use('/api/conversations', conversationsRouter);
 app.use('/api/docs', docsRouter);
 
-app.get('/demo', function(req, res) {
+app.get('/database', function(req, res) {
   res.set('Cache-Control', 'no-store');
-  res.sendFile(path.join(__dirname, 'seminar-database-demo.html'));
+  res.sendFile(path.join(__dirname, 'database-explorer.html'));
+});
+
+app.get('/database/sample-data', function(req, res) {
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.join(__dirname, 'database-sample-data.html'));
+});
+
+app.get('/demo', function(req, res) {
+  res.redirect(301, '/database');
 });
 
 // catch 404 and forward to error handler

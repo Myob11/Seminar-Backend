@@ -1,7 +1,8 @@
 # Seminar API
 
-> **Draft:** The API contract is not finalized. The endpoints below describe
-> the planned surface and are not all implemented yet.
+> **Implementation status:** The endpoints and WebSocket events described in
+> this document are implemented unless a section is explicitly marked
+> **Planned**. Group conversations and device management are not implemented.
 
 ## Conventions
 
@@ -13,7 +14,7 @@
   Authorization: Bearer <access-token>
   ```
 
-- Error response shape is planned as:
+- API errors use this JSON response shape:
 
   ```json
   {
@@ -29,6 +30,84 @@
   rendered on the hosted documentation website at `GET /api/docs`. Documentation
   updates must include authentication, request and response shapes, and
   relevant error responses.
+
+## Real-time notifications
+
+The server exposes an authenticated WebSocket endpoint at `/ws`:
+
+```text
+GET /ws
+Authorization: Bearer <jwt-access-token>
+Upgrade: websocket
+```
+
+Use `wss://backend.kbnet.si/ws` in deployed TLS environments and
+`ws://127.0.0.1:3000/ws` for local development. Connect with an HTTP/1.1
+WebSocket upgrade request and include the access token in the
+`Authorization: Bearer <jwt-access-token>` header. The token must be valid,
+unexpired, and not revoked, and its account must still exist. The server
+derives the user ID from the token; clients must not send a user ID or
+subscribe to conversations. Multiple connections, including connections from
+multiple devices, are supported for the same account.
+
+The connection carries server notifications. The server sends JSON text frames
+with a `type` field. These are the event types currently sent:
+
+```json
+{
+  "type": "message_received",
+  "conversationId": "<conversation id>",
+  "messageId": "<saved message id>"
+}
+```
+
+```json
+{
+  "type": "friend_request_received",
+  "requestId": "<friend request id>",
+  "fromUserId": "<sender user id>"
+}
+```
+
+```json
+{
+  "type": "friend_request_accepted",
+  "requestId": "<friend request id>",
+  "byUserId": "<user who accepted it>"
+}
+```
+
+`message_received` is sent to the other active participant's connections after
+the encrypted message has been saved. It identifies the saved message and
+conversation; fetch the existing conversation history and conversation-list
+REST endpoints for message content and unread counts. `friend_request_received`
+is sent to the recipient after the pending request is saved.
+`friend_request_accepted` is sent to the requester after acceptance is saved.
+Use `/api/friends/requests/incoming` and
+`/api/friends/requests/outgoing` to refresh friendship state.
+
+Clients should treat these events as notifications to refresh REST state. The
+server does not define an application-level client-to-server message format;
+clients do not need to send frames. WebSocket control ping/pong frames are used
+for connection keepalive.
+
+No event contains ciphertext, plaintext, encryption keys, or access tokens.
+Messages are authorized and persisted through
+`POST /api/conversations/:id/messages` before `message_received` is delivered.
+Read state continues to use `PUT /api/conversations/:id/read-state`.
+
+Friend requests are persisted through `POST /api/friends/requests` before
+`friend_request_received` is delivered. Acceptance is persisted through
+`POST /api/friends/requests/:id/accept` before
+`friend_request_accepted` is delivered.
+
+Missing, malformed, invalid, expired, or revoked tokens, and tokens for
+accounts that no longer exist, reject the HTTP upgrade with `401 Unauthorized`.
+Requests to a path other than `/ws` reject the upgrade with `404 Not Found`.
+Events are not acknowledged or stored, and notifications sent while a user has
+no active connection are not queued. Refresh relevant REST state after
+connecting or reconnecting. The server sends a ping every 30 seconds and
+terminates a connection that does not respond before the next heartbeat.
 
 ## Health
 
@@ -226,6 +305,7 @@ with `401 INVALID_TOKEN`.
 | `GET` | `/api/users/:id/public-key` | JWT | Read another user's RSA public key |
 | `POST` | `/api/users/me/profile-picture` | JWT | Upload a profile picture |
 | `DELETE` | `/api/users/me/profile-picture` | JWT | Remove the profile picture |
+| `GET` | `/api/users/profile-pictures/:filename` | Public | Retrieve an uploaded profile picture |
 
 ### View a user profile
 
@@ -799,7 +879,11 @@ The service must reject:
 - Reverse duplicates for an existing `pending` or `accepted` relationship.
 - Accept or decline requests that were not sent to the authenticated user.
 
-## Devices and public keys
+## Planned: Device management
+
+Device management is not implemented. Account-level public keys are
+implemented and documented under **RSA public keys** above; this planned
+section refers only to separate per-device identities and their management.
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
@@ -807,9 +891,9 @@ The service must reject:
 | `GET` | `/api/devices` | JWT | List the user's devices |
 | `DELETE` | `/api/devices/:id` | JWT | Revoke a device |
 
-Private keys remain exclusively on client devices. Public-key authenticity,
-key-change handling, and serialization formats require a security review before
-implementation.
+Separate per-device identities remain planned. Private keys remain exclusively
+on client devices. Device-specific public-key authenticity and key-change
+handling require a security review before implementation.
 
 ## Conversations and messages
 
@@ -1040,16 +1124,19 @@ Delete errors:
 | `409` | `MESSAGE_ALREADY_DELETED` | Message was already soft-deleted. |
 | `403` | `MESSAGE_FORBIDDEN` | Caller sent a different message. |
 
-The following operations remain planned:
+The following conversation features remain planned:
 
 - Retrieve direct-conversation participants
 - Group creation and group role/participant operations
 
-Every operation must verify authenticated conversation membership. The backend
-must store and relay ciphertext and encrypted key envelopes only; it must not
-receive plaintext messages or plaintext encryption keys.
+The implemented direct-conversation endpoints verify authenticated
+conversation membership. The backend stores and returns ciphertext and
+encrypted key envelopes; it does not receive plaintext messages or plaintext
+conversation keys. Planned group endpoints will need equivalent membership
+checks.
 
-Group conversations also support participant and role management:
+Group conversation behavior is planned and has no implemented endpoints yet.
+The intended behavior is:
 
 - Create a group and automatically assign the creator the `owner` role.
 - Let owners and admins add or remove members.
@@ -1064,16 +1151,6 @@ conversation is also soft-deleted with `deleted_at` and `deleted_by`; its
 associated participant, envelope, and message rows remain in the database but
 are hidden from normal API reads.
 
-The exact participant, role-change, and message-deletion paths remain draft
-and must use the standard REST methods and error shapes defined above.
+The exact participant, role-change, and group message-deletion paths remain
+undecided. The direct-message deletion endpoint documented above is implemented.
 
-## Real-time messaging
-
-WebSocket endpoints and message event names are not finalized. The planned
-requirements are:
-
-- Authenticate the WebSocket connection.
-- Authorize subscriptions to individual conversations.
-- Persist a message before broadcasting it.
-- Apply the same authorization rules as the REST API.
-- Do not log plaintext messages or private cryptographic material.

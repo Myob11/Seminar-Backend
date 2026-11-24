@@ -7,6 +7,7 @@ var conversations = require('../repositories/conversations');
 var keyEnvelopes = require('../repositories/key_envelopes');
 var messages = require('../repositories/messages');
 var ApiError = require('../errors');
+var websockets = require('../services/websockets');
 
 var router = express.Router();
 var uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -297,6 +298,15 @@ router.post('/:id/messages', authenticate, async function(req, res, next) {
       nonce,
       authTag
     );
+
+    var recipientId = await conversations.findDirectRecipient(req.params.id, req.user.id);
+    if (recipientId) {
+      websockets.sendToUser(recipientId, {
+        type: 'message_received',
+        conversationId: req.params.id,
+        messageId: message.id
+      });
+    }
 
     res.status(201).json(messageResponse(message));
   } catch (error) {
